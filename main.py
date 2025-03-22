@@ -2,13 +2,49 @@ import asyncio
 import websockets
 import socket
 import requests
+from flask import Flask, request, send_from_directory, jsonify
+from flask_cors import CORS
+import os
 
+app = Flask(__name__)
+CORS(app)  # 允许跨域
 connected_clients = set()
-banned_ips = set()
+UPLOAD_FOLDER = "./files"
+
 CLOUDFLARE_API_TOKEN = ""
 ZONE_ID = ""  # 替换为你的 Zone ID
 RECORD_ID = ""  # 替换为你的 Record ID
 DOMAIN = ""
+
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+
+@app.route("/upload", methods=["POST"])
+def upload_file():
+    if "file" not in request.files:
+        return jsonify({"error": "没有找到文件"}), 400
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"error": "文件名为空"}), 400
+    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    file.save(file_path)
+    return jsonify({"message": f"文件 {file.filename} 上传成功"}), 200
+
+
+@app.route("/download/<filename>", methods=["GET"])
+def download_file(filename):
+    try:
+        return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
+    except FileNotFoundError:
+        return jsonify({"error": "文件未找到"}), 404
+
+
+@app.route("/file_list", methods=["GET"])
+def file_list():
+    files = os.listdir(UPLOAD_FOLDER)
+
+    return jsonify(files), 200
 
 
 async def handler(websocket):
@@ -29,7 +65,7 @@ async def handler(websocket):
                         break
             else:
                 name = getattr(websocket, "name", websocket.remote_address[0])
-            formatted_message = f"{name} {message}"
+            formatted_message = f"{name}：{message}"
             # 将消息广播给所有连接的客户端
             await asyncio.gather(
                 *[
@@ -43,6 +79,12 @@ async def handler(websocket):
     finally:
         # 注销客户端
         connected_clients.remove(websocket)
+
+
+async def run_websocket_server():
+    async with websockets.serve(handler, "0.0.0.0", 8765):
+        print("WebSocket 服务器已启动，地址: ws://0.0.0.0:8765")
+        await asyncio.Future()  # 保持运行
 
 
 def update_cloudflare_dns(ip):
@@ -60,11 +102,14 @@ def update_cloudflare_dns(ip):
         "ttl": 1,
         "proxied": False,  # 不启用 Cloudflare 代理
     }
-    response = requests.put(url, json=data, headers=headers)
-    if response.status_code == 200:
-        print(f"成功更新 DNS 记录: {DOMAIN} -> {ip}")
-    else:
-        print(f"更新 DNS 记录失败: {response.status_code}, {response.text}")
+    try:
+        response = requests.put(url, json=data, headers=headers)
+        if response.status_code == 200:
+            print(f"成功更新 DNS 记录: {DOMAIN} -> {ip}")
+        else:
+            print(f"更新 DNS 记录失败: {response.status_code}, {response.text}")
+    except requests.exceptions.RequestException as e:
+        print(f"更新 DNS 记录失败: {e}")
 
 
 def get_host_ip():
@@ -77,12 +122,13 @@ def get_host_ip():
     return ip
 
 
-async def main():
-    update_cloudflare_dns(get_host_ip())
-    async with websockets.serve(handler, "0.0.0.0", 8765):
-        print("WebSocket 服务器已启动,地址: ws://0.0.0.0:8765")
-        await asyncio.Future()  # 永远运行
+def run_flask_app():
+    app.run(host="0.0.0.0", port=5000)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    update_cloudflare_dns(get_host_ip())
+    loop = asyncio.get_event_loop()
+    # 同时运行 Flask 和 WebSocket 服务器
+    loop.run_in_executor(None, run_flask_app)
+    loop.run_until_complete(run_websocket_server())

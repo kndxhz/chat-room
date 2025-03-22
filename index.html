@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天室</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: url('https://t.alcy.cc/ycy') no-repeat center center fixed;
+            background-size: cover;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .chat-container {
+            width: 90%;
+            max-width: 800px;
+            height: 80%;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            display: flex;
+            overflow: hidden;
+        }
+
+        .chat-main {
+            flex: 3;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.3);
+            text-align: center;
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            color: #333;
+        }
+
+        .chat-messages p {
+            margin: 5px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 10px;
+            word-wrap: break-word;
+        }
+
+        .chat-input {
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .chat-input-row {
+            display: flex;
+            margin-bottom: 10px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            outline: none;
+            font-size: 1em;
+        }
+
+        .chat-input button {
+            margin-left: 10px;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            background: #007bff;
+            color: white;
+            font-size: 1em;
+            cursor: pointer;
+        }
+
+        .chat-input button:hover {
+            background: #0056b3;
+        }
+
+        .file-list {
+            flex: 1;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.3);
+            border-left: 1px solid rgba(255, 255, 255, 0.2);
+            overflow-y: auto;
+        }
+
+        .file-list h3 {
+            text-align: center;
+            color: #333;
+        }
+
+        .file-list a {
+            display: block;
+            margin: 5px 0;
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .file-list a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-main">
+            <div class="chat-header">聊天室</div>
+            <div class="chat-messages" id="messages"></div>
+            <div class="chat-input">
+                <div class="chat-input-row">
+                    <input type="text" id="messageInput" placeholder="输入消息...">
+                    <button onclick="sendMessage()">发送</button>
+                </div>
+                <div class="chat-input-row">
+                    <input type="file" id="fileInput">
+                    <button onclick="uploadFile()">上传文件</button>
+                </div>
+            </div>
+        </div>
+        <div class="file-list" id="fileList">
+            <h3>文件列表</h3>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let username;
+
+        // 页面加载时要求用户输入名称
+        window.onload = () => {
+            username = prompt("请输入你的名称：");
+            if (!username || username.trim() === "") {
+                alert("请输入昵称！");
+                location.reload(); // 刷新页面
+                return;
+            }
+            connectWebSocket();
+            fetchFileList();
+            setInterval(fetchFileList, 3000);
+
+            // 监听输入框的回车事件
+            const messageInput = document.getElementById("messageInput");
+            messageInput.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") {
+                    sendMessage();
+                }
+            });
+        };
+
+        function connectWebSocket() {
+            ws = new WebSocket("ws://im.kndxhz.cn:8765");
+
+            ws.onopen = () => {
+                console.log("已连接到 WebSocket 服务器");
+                ws.send(`set-name ${username}`);
+            };
+
+            ws.onmessage = (event) => {
+                const message = event.data;
+
+                // 渲染普通消息
+                renderMessage(message, "received");
+            };
+
+            ws.onclose = () => {
+                alert("你已被踢出房间！");
+                location.reload();
+            };
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById("messageInput");
+            const message = messageInput.value.trim();
+            if (message) {
+                ws.send(message);
+                renderMessage(`${username}: ${message}`, "sent");
+                messageInput.value = "";
+            }
+        }
+
+        function renderMessage(message, type) {
+            const messagesDiv = document.getElementById("messages");
+            const messageElement = document.createElement("p");
+
+            if (type === "sent") {
+                messageElement.style.textAlign = "right";
+                messageElement.style.color = "#007bff";
+            } else if (type === "received") {
+                messageElement.style.textAlign = "left";
+                messageElement.style.color = "#333";
+            }
+
+            // 检查消息中是否包含链接
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            const parts = message.split(urlRegex);
+            parts.forEach(part => {
+                if (urlRegex.test(part)) {
+                    const link = document.createElement("a");
+                    link.href = part;
+                    link.target = "_blank";
+                    link.textContent = part;
+                    messageElement.appendChild(link);
+                } else {
+                    messageElement.appendChild(document.createTextNode(part));
+                }
+            });
+
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function uploadFile() {
+            const fileInput = document.getElementById("fileInput");
+            const file = fileInput.files[0];
+            if (!file) {
+                alert("请选择一个文件！");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            fetch("http://im.kndxhz.cn:5000/upload", {
+                method: "POST",
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message || "文件上传成功！");
+                ws.send(`${username} 发送了文件 (${file.name})`);
+                fetchFileList(); // 更新文件列表
+            })
+            .catch(error => {
+                console.error("文件上传失败：", error);
+                alert("文件上传失败！");
+            });
+        }
+
+        function fetchFileList() {
+    fetch("http://im.kndxhz.cn:5000/file_list")
+        .then(response => response.json()) // 解析为 JSON
+        .then(files => {
+            const fileListDiv = document.getElementById("fileList");
+            fileListDiv.innerHTML = "<h3>文件列表</h3>";
+            files.forEach(file => {
+                const fileLink = document.createElement("a");
+                fileLink.href = `http://im.kndxhz.cn:5000/download/${file}`;
+                fileLink.textContent = file;
+                fileLink.target = "_blank";
+                fileListDiv.appendChild(fileLink);
+            });
+        })
+        .catch(error => {
+            console.error("获取文件列表失败：", error);
+        });
+}
+
+
+    </script>
+</body>
+</html>
