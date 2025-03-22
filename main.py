@@ -18,7 +18,6 @@ ZONE_ID = ""  # 替换为你的 Zone ID
 RECORD_ID = ""  # 替换为你的 Record ID
 DOMAIN = ""
 
-
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
@@ -101,9 +100,10 @@ async def handler(websocket):
                         print(f"已踢出 IP: {ip_to_kick}")
                         break
             elif message.startswith("del-all-files"):
-                os.removedirs(UPLOAD_FOLDER)
-                os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-                print(f"已删除所有文件")
+                for filename in os.listdir(UPLOAD_FOLDER):
+                    file_path = os.path.join(UPLOAD_FOLDER, filename)
+                    os.remove(file_path)
+                print("已删除所有文件")
             elif message.startswith("update-dns"):
                 update_cloudflare_dns(get_host_ip())
             elif message.startswith("del"):
@@ -114,6 +114,7 @@ async def handler(websocket):
                     print(f"已删除文件: {filename}")
                 else:
                     print(f"文件不存在: {filename}")
+                    await websocket.send(f"文件不存在: {filename}")
             else:
                 name = getattr(websocket, "name", websocket.remote_address[0])
                 formatted_message = f"{name}：{message}"
