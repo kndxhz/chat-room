@@ -104,8 +104,10 @@ async def handler(websocket):
                     file_path = os.path.join(UPLOAD_FOLDER, filename)
                     os.remove(file_path)
                 print("已删除所有文件")
+                await websocket.send("已删除所有文件")
             elif message.startswith("update-dns"):
                 update_cloudflare_dns(get_host_ip())
+                await websocket.send("已更新 DNS 记录")
             elif message.startswith("del"):
                 filename = message.split(" ", 1)[1].strip()
                 file_path = os.path.join(UPLOAD_FOLDER, filename)

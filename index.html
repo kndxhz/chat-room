@@ -209,7 +209,7 @@
     <script>
         let ws;
         let username;
-
+    
         // 页面加载时要求用户输入名称
         window.onload = () => {
             username = prompt("请输入你的昵称：");
@@ -221,7 +221,7 @@
             connectWebSocket();
             fetchFileList();
             setInterval(fetchFileList, 3000);
-
+    
             // 监听输入框的回车事件
             const messageInput = document.getElementById("messageInput");
             messageInput.addEventListener("keydown", (event) => {
@@ -229,29 +229,71 @@
                     sendMessage();
                 }
             });
+    
+            // 添加拖放上传文件功能（排除输入框）
+            document.addEventListener("dragover", (event) => {
+                event.preventDefault();
+                if (!isInsideInput(event.target)) {
+                    document.body.style.border = "2px dashed #007bff";
+                }
+            });
+    
+            document.addEventListener("dragleave", (event) => {
+                if (!isInsideInput(event.target)) {
+                    document.body.style.border = "none";
+                }
+            });
+    
+            document.addEventListener("drop", (event) => {
+                event.preventDefault();
+                document.body.style.border = "none";
+                if (!isInsideInput(event.target)) {
+                    const files = event.dataTransfer.files;
+                    if (files.length > 0) {
+                        uploadDroppedFile(files[0]);
+                    }
+                }
+            });
+    
+            // 添加 Ctrl+V 上传文件功能（排除输入框）
+            document.addEventListener("paste", (event) => {
+                if (!isInsideInput(event.target)) {
+                    const items = event.clipboardData.items;
+                    for (let item of items) {
+                        if (item.kind === "file") {
+                            const file = item.getAsFile();
+                            uploadDroppedFile(file);
+                        }
+                    }
+                }
+            });
         };
-
+    
+        function isInsideInput(target) {
+            return target.tagName === "INPUT" || target.tagName === "TEXTAREA";
+        }
+    
         function connectWebSocket() {
             ws = new WebSocket("ws://im.kndxhz.cn:8765");
-
+    
             ws.onopen = () => {
                 console.log("已连接到 WebSocket 服务器");
                 ws.send(`set-name ${username}`);
             };
-
+    
             ws.onmessage = (event) => {
                 const message = event.data;
-
+    
                 // 渲染普通消息
                 renderMessage(message, "received");
             };
-
+    
             ws.onclose = () => {
                 alert("你已断开连接！");
                 location.reload();
             };
         }
-
+    
         function sendMessage() {
             const messageInput = document.getElementById("messageInput");
             const message = messageInput.value.trim();
@@ -261,11 +303,11 @@
                 messageInput.value = "";
             }
         }
-
+    
         function renderMessage(message, type) {
             const messagesDiv = document.getElementById("messages");
             const messageElement = document.createElement("p");
-
+    
             if (type === "sent") {
                 messageElement.style.textAlign = "right";
                 messageElement.style.color = "#007bff";
@@ -273,7 +315,7 @@
                 messageElement.style.textAlign = "left";
                 messageElement.style.color = "#333";
             }
-
+    
             // 检查消息中是否包含链接
             const urlRegex = /(https?:\/\/[^\s]+)/g;
             const parts = message.split(urlRegex);
@@ -288,11 +330,11 @@
                     messageElement.appendChild(document.createTextNode(part));
                 }
             });
-
+    
             messagesDiv.appendChild(messageElement);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
-
+    
         function uploadFile() {
             const fileInput = document.getElementById("fileInput");
             const file = fileInput.files[0];
@@ -300,10 +342,18 @@
                 alert("请选择一个文件！");
                 return;
             }
-
+            uploadDroppedFile(file);
+        }
+    
+        function uploadDroppedFile(file) {
+            if (!file) {
+                alert("未检测到文件！");
+                return;
+            }
+    
             const formData = new FormData();
             formData.append("file", file);
-
+    
             fetch("http://im.kndxhz.cn:5000/upload", {
                 method: "POST",
                 body: formData,
@@ -319,27 +369,25 @@
                 alert("文件上传失败！");
             });
         }
-
+    
         function fetchFileList() {
-    fetch("http://im.kndxhz.cn:5000/file_list")
-        .then(response => response.json()) // 解析为 JSON
-        .then(files => {
-            const fileListDiv = document.getElementById("fileList");
-            fileListDiv.innerHTML = "<h3>文件列表</h3>";
-            files.forEach(file => {
-                const fileLink = document.createElement("a");
-                fileLink.href = `http://im.kndxhz.cn:5000/download/${file}`;
-                fileLink.textContent = file;
-                fileLink.target = "_blank";
-                fileListDiv.appendChild(fileLink);
-            });
-        })
-        .catch(error => {
-            console.error("获取文件列表失败：", error);
-        });
-}
-
-
+            fetch("http://im.kndxhz.cn:5000/file_list")
+                .then(response => response.json()) // 解析为 JSON
+                .then(files => {
+                    const fileListDiv = document.getElementById("fileList");
+                    fileListDiv.innerHTML = "<h3>文件列表</h3>";
+                    files.forEach(file => {
+                        const fileLink = document.createElement("a");
+                        fileLink.href = `http://im.kndxhz.cn:5000/download/${file}`;
+                        fileLink.textContent = file;
+                        fileLink.target = "_blank";
+                        fileListDiv.appendChild(fileLink);
+                    });
+                })
+                .catch(error => {
+                    console.error("获取文件列表失败：", error);
+                });
+        }
     </script>
 </body>
 </html>
