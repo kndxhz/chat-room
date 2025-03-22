@@ -10,6 +10,7 @@ app = Flask(__name__)
 CORS(app)  # 允许跨域
 connected_clients = set()
 UPLOAD_FOLDER = "./files"
+CONNECT_FILE = "./connect.txt"
 
 CLOUDFLARE_API_TOKEN = ""
 ZONE_ID = ""  # 替换为你的 Zone ID
@@ -47,38 +48,70 @@ def file_list():
     return jsonify(files), 200
 
 
+def update_connect_file():
+    """更新 connect.txt 文件，记录所有连接的客户端信息"""
+    with open(CONNECT_FILE, "w") as f:
+        for client in connected_clients:
+            name = getattr(client, "name", client.remote_address[0])
+            ip = client.remote_address[0]
+            f.write(f"{ip} {name}\n")
+
+
+async def broadcast_connection_list():
+    """向所有客户端广播当前连接的客户端列表"""
+    connection_list = [
+        f"{getattr(client, 'name', client.remote_address[0])} ({client.remote_address[0]})"
+        for client in connected_clients
+    ]
+    message = "当前连接的客户端:\n" + "\n".join(connection_list)
+    await asyncio.gather(*[client.send(message) for client in connected_clients])
+
+
 async def handler(websocket):
     # 注册新客户端
     connected_clients.add(websocket)
     try:
+        # 获取客户端 IP
+        ip = websocket.remote_address[0]
+        websocket.name = ip  # 默认名称为 IP 地址
+        update_connect_file()
+        await broadcast_connection_list()
+
         async for message in websocket:
             print(f"收到消息: {message}")
             if message.startswith("set-name"):
                 name = message.split(" ", 1)[1].strip()
                 websocket.name = name
-            elif message.startswith("kick"):
-                ip_to_kick = message.split(" ", 1)[1].strip()
+                update_connect_file()
+                await broadcast_connection_list()
+                name_to_kick = message.split(" ", 1)[1].strip()
+
                 for client in connected_clients:
-                    if client.remote_address[0] == ip_to_kick:
+                    if (
+                        getattr(client, "name", client.remote_address[0])
+                        == name_to_kick
+                    ):
                         await client.close()
-                        print(f"已踢出 IP: {ip_to_kick}")
+                        print(f"已踢出名称: {name_to_kick}")
                         break
             else:
                 name = getattr(websocket, "name", websocket.remote_address[0])
-            formatted_message = f"{name}：{message}"
-            # 将消息广播给所有连接的客户端
-            await asyncio.gather(
-                *[
-                    client.send(formatted_message)
-                    for client in connected_clients
-                    if client != websocket
-                ]
-            )
+                formatted_message = f"{name}：{message}"
+                # 将消息广播给所有连接的客户端
+                await asyncio.gather(
+                    *[
+                        client.send(formatted_message)
+                        for client in connected_clients
+                        if client != websocket
+                    ]
+                )
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:
         # 注销客户端
         connected_clients.remove(websocket)
+        update_connect_file()
+        await broadcast_connection_list()
 
 
 async def run_websocket_server():
@@ -127,6 +160,9 @@ def run_flask_app():
 
 
 if __name__ == "__main__":
+    # 程序启动时清空 connect.txt 文件
+    with open(CONNECT_FILE, "w") as f:
+        f.write("")
     update_cloudflare_dns(get_host_ip())
     loop = asyncio.get_event_loop()
     # 同时运行 Flask 和 WebSocket 服务器
