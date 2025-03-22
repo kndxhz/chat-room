@@ -5,10 +5,10 @@ import requests
 
 connected_clients = set()
 banned_ips = set()
-CLOUDFLARE_API_TOKEN = "khrjBQgVWPnf-WzBtvQN5NJ_VTGtLaswTdnfwikK"
-ZONE_ID = "40dc857bc7c8f78ec2ace5369ff54ae8"  # 替换为你的 Zone ID
-RECORD_ID = "6d9640e6162fbd9bf5b0d54f69642dfd"  # 替换为你的 Record ID
-DOMAIN = "im.kndxhz.cn"
+CLOUDFLARE_API_TOKEN = ""
+ZONE_ID = ""  # 替换为你的 Zone ID
+RECORD_ID = ""  # 替换为你的 Record ID
+DOMAIN = ""
 
 
 async def handler(websocket):
