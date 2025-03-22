@@ -12,10 +12,12 @@ connected_clients = set()
 UPLOAD_FOLDER = "./files"
 CONNECT_FILE = "./connect.txt"
 
-CLOUDFLARE_API_TOKEN = "WCy9VSOe28zbanl9AlnazIzbZFehuXUTUV7ggWhu"
-ZONE_ID = "40dc857bc7c8f78ec2ace5369ff54ae8"  # 替换为你的 Zone ID
-RECORD_ID = "6d9640e6162fbd9bf5b0d54f69642dfd"  # 替换为你的 Record ID
-DOMAIN = "im.kndxhz.cn"
+
+CLOUDFLARE_API_TOKEN = ""
+ZONE_ID = ""  # 替换为你的 Zone ID
+RECORD_ID = ""  # 替换为你的 Record ID
+DOMAIN = ""
+
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
