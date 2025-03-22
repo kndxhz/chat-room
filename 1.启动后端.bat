@@ -1,3 +1,3 @@
 @echo off
-title å¯åŠ¨åç«¯
-./.venv./Scripts/python.exe ./main.py
+title Æô¶¯ºó¶Ë
+.\.venv.\Scripts\python.exe .\main.py
