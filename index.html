@@ -121,6 +121,68 @@
         .file-list a:hover {
             text-decoration: underline;
         }
+
+        /* 添加媒体查询以适配手机端 */
+    @media (max-width: 768px) {
+        body {
+            justify-content: flex-start;
+            align-items: flex-start;
+            height: auto;
+            overflow: auto;
+        }
+
+        .chat-container {
+            width: 100%;
+            height: 100%;
+            border-radius: 0;
+            box-shadow: none;
+            flex-direction: column;
+        }
+
+        .chat-main {
+            flex: none;
+            width: 100%;
+            height: auto;
+        }
+
+        .chat-messages {
+            height: 50vh;
+            padding: 10px;
+        }
+
+        .chat-input {
+            padding: 5px;
+        }
+
+        .chat-input-row {
+            flex-direction: column;
+        }
+
+        .chat-input input {
+            margin-bottom: 10px;
+            width: 100%;
+        }
+
+        .chat-input button {
+            width: 100%;
+        }
+
+        .file-list {
+            width: 100%;
+            height: auto;
+            padding: 10px;
+            border-left: none;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .file-list h3 {
+            font-size: 1.2em;
+        }
+
+        .file-list a {
+            font-size: 0.9em;
+        }
+    }
     </style>
 </head>
 <body>
@@ -150,7 +212,7 @@
 
         // 页面加载时要求用户输入名称
         window.onload = () => {
-            username = prompt("请输入你的名称：");
+            username = prompt("请输入你的昵称：");
             if (!username || username.trim() === "") {
                 alert("请输入昵称！");
                 location.reload(); // 刷新页面
@@ -185,7 +247,7 @@
             };
 
             ws.onclose = () => {
-                alert("你已被踢出房间！");
+                alert("你已断开连接！");
                 location.reload();
             };
         }

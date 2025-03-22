@@ -12,11 +12,10 @@ connected_clients = set()
 UPLOAD_FOLDER = "./files"
 CONNECT_FILE = "./connect.txt"
 
-CLOUDFLARE_API_TOKEN = ""
-ZONE_ID = ""  # 替换为你的 Zone ID
-RECORD_ID = ""  # 替换为你的 Record ID
-DOMAIN = ""
-
+CLOUDFLARE_API_TOKEN = "WCy9VSOe28zbanl9AlnazIzbZFehuXUTUV7ggWhu"
+ZONE_ID = "40dc857bc7c8f78ec2ace5369ff54ae8"  # 替换为你的 Zone ID
+RECORD_ID = "6d9640e6162fbd9bf5b0d54f69642dfd"  # 替换为你的 Record ID
+DOMAIN = "im.kndxhz.cn"
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -59,12 +58,19 @@ def update_connect_file():
 
 async def broadcast_connection_list():
     """向所有客户端广播当前连接的客户端列表"""
-    connection_list = [
-        f"{getattr(client, 'name', client.remote_address[0])} ({client.remote_address[0]})"
-        for client in connected_clients
-    ]
-    message = "当前连接的客户端:\n" + "\n".join(connection_list)
-    await asyncio.gather(*[client.send(message) for client in connected_clients])
+    for client in connected_clients:
+        name = getattr(client, "name", client.remote_address[0])
+        message = f"{name} 进入了房间"
+        await asyncio.gather(
+            *[c.send(message) for c in connected_clients if c != client]
+        )
+
+
+async def broadcast_exit_message(client):
+    """广播客户端退出消息"""
+    name = getattr(client, "name", client.remote_address[0])
+    message = f"{name} 退出了房间"
+    await asyncio.gather(*[c.send(message) for c in connected_clients if c != client])
 
 
 async def handler(websocket):
@@ -84,15 +90,13 @@ async def handler(websocket):
                 websocket.name = name
                 update_connect_file()
                 await broadcast_connection_list()
-                name_to_kick = message.split(" ", 1)[1].strip()
 
+            elif message.startswith("kick"):
+                ip_to_kick = message.split(" ", 1)[1].strip()
                 for client in connected_clients:
-                    if (
-                        getattr(client, "name", client.remote_address[0])
-                        == name_to_kick
-                    ):
+                    if client.remote_address[0] == ip_to_kick:
                         await client.close()
-                        print(f"已踢出名称: {name_to_kick}")
+                        print(f"已踢出 IP: {ip_to_kick}")
                         break
             else:
                 name = getattr(websocket, "name", websocket.remote_address[0])
