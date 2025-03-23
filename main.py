@@ -19,6 +19,8 @@ RECORD_ID = ""  # 替换为你的 Record ID
 DOMAIN = ""
 
 
+
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
@@ -92,6 +94,7 @@ async def handler(websocket):
                 websocket.name = name
                 update_connect_file()
                 await broadcast_connection_list()
+                await websocket.send(f"{websocket.remote_address[0]}已改名为{name}")
 
             # elif message.startswith("kick"):
             #     ip_to_kick = message.split(" ", 1)[1].strip()

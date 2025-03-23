@@ -1,3 +1,3 @@
 @echo off
 title Æô¶¯ºó¶Ë
-.\.venv.\Scripts\python.exe .\main.py
+.\python-3.13.2-embed-amd64\python.exe main.py

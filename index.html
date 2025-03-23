@@ -313,7 +313,18 @@
     
             ws.onmessage = (event) => {
                 const message = event.data;
-    
+
+                // 检查是否是 "set-name xxx" 指令
+                if (message.startsWith("set-name ")) {
+                    const newUsername = message.split("set-name ")[1].trim();
+                    if (newUsername) {
+                        username = newUsername; // 更新本地变量
+                        setCookie("username", newUsername, 1); // 更新 cookie
+                        console.log((`昵称已更新为：${newUsername}`);
+                    }
+                    return;
+                }
+
                 // 检查是否是 "kick xxx" 消息
                 if (message.includes("：kick ")) {
                     const parts = message.split("：kick ");
@@ -327,10 +338,10 @@
                     }
                     return;
                 }
-    
+
                 // 渲染普通消息
                 renderMessage(message, "received");
-            };
+};
     
             ws.onclose = () => {
                 //alert("你已断开连接！正在尝试重新连接...");
