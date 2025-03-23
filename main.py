@@ -99,13 +99,13 @@ async def handler(websocket):
                         await client.close()
                         print(f"已踢出 IP: {ip_to_kick}")
                         break
-            elif message.startswith("del-all-files"):
+            elif message == "del-all-files":
                 for filename in os.listdir(UPLOAD_FOLDER):
                     file_path = os.path.join(UPLOAD_FOLDER, filename)
                     os.remove(file_path)
                 print("已删除所有文件")
                 await websocket.send("已删除所有文件")
-            elif message.startswith("update-dns"):
+            elif message == "update-dns":
                 update_cloudflare_dns(get_host_ip())
                 await websocket.send("已更新 DNS 记录")
             elif message.startswith("del"):
@@ -117,6 +117,10 @@ async def handler(websocket):
                 else:
                     print(f"文件不存在: {filename}")
                     await websocket.send(f"文件不存在: {filename}")
+            elif message == "list":
+                with open(CONNECT_FILE, "r") as f:
+                    content = f.read()
+                await websocket.send("当前在线的客户端:\n" + content)
             else:
                 name = getattr(websocket, "name", websocket.remote_address[0])
                 formatted_message = f"{name}：{message}"
