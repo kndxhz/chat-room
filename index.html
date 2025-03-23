@@ -385,6 +385,13 @@
                     console.log(`昵称已更新为：${newUsername}`);
                 }
             }
+            // 检查是否是 "clear" 指令
+            if (message.startsWith("clear ")) {
+
+                chatMessages.innerHTML = "";
+                return;
+                
+            }
 
             
         }
