@@ -122,6 +122,24 @@
             text-decoration: underline;
         }
 
+        .instructions {
+            flex: 1;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.3);
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+            overflow-y: auto;
+        }
+
+        .instructions h3 {
+            text-align: center;
+            color: #333;
+        }
+
+        .instructions p {
+            margin: 10px 0;
+            color: #333;
+        }
+
         /* 添加媒体查询以适配手机端 */
     @media (max-width: 768px) {
         body {
@@ -187,6 +205,11 @@
 </head>
 <body>
     <div class="chat-container">
+        <div class="instructions">
+            <h3>指令说明</h3>
+            <p><strong>set-name 名字</strong> 重新设定昵称</p>
+            <p><strong>clear</strong> 清空聊天记录</p>
+        </div>
         <div class="chat-main">
             <div class="chat-header">聊天室</div>
             <div class="chat-messages" id="messages"></div>
@@ -387,6 +410,7 @@
             }
             // 检查是否是 "clear" 指令
             if (message == "clear") {
+                const chatMessages = document.getElementById("messages");
                 chatMessages.innerHTML = "";
             }
 
