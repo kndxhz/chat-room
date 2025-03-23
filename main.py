@@ -138,6 +138,8 @@ async def handler(websocket):
                 with open(CONNECT_FILE, "r") as f:
                     content = f.read()
                 await websocket.send("当前在线的客户端:\n" + content)
+            elif message == "clear":
+                break
             else:
                 name = getattr(websocket, "name", websocket.remote_address[0])
                 formatted_message = f"{name}：{message}"
