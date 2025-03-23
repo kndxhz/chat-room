@@ -210,13 +210,43 @@
         let ws;
         let username;
     
+        // 设置 cookie
+        function setCookie(name, value, days) {
+            const date = new Date();
+            date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
+            const cookieString = `${name}=${value};expires=${date.toUTCString()};path=/`;
+            console.log("设置cookie:", cookieString); // 调试日志
+            document.cookie = cookieString;
+        }
+    
+        // 获取 cookie
+        function getCookie(name) {
+            const cookies = document.cookie.split("; ");
+            for (let cookie of cookies) {
+                const [key, value] = cookie.split("=");
+                if (key === name) {
+                    return value;
+                }
+            }
+            return null;
+        }
+    
+        // 删除 cookie
+        function deleteCookie(name) {
+            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/`;
+        }
+    
         // 页面加载时要求用户输入名称
         window.onload = () => {
-            username = prompt("请输入你的昵称：");
-            if (!username || username.trim() === "") {
-                alert("请输入昵称！");
-                location.reload(); // 刷新页面
-                return;
+            username = getCookie("username");
+            if (!username) {
+                username = prompt("请输入你的昵称：");
+                if (!username || username.trim() === "") {
+                    alert("请输入昵称！");
+                    location.reload(); // 刷新页面
+                    return;
+                }
+                setCookie("username", username, 1); // 设置 cookie，时长为 1 天
             }
             connectWebSocket();
             fetchFileList();
@@ -284,14 +314,57 @@
             ws.onmessage = (event) => {
                 const message = event.data;
     
+                // 检查是否是 "kick xxx" 消息
+                if (message.includes("：kick ")) {
+                    const parts = message.split("：kick ");
+                    if (parts.length === 2) {
+                        const kickedUser = parts[1].trim(); // 提取被操作用户名
+                        if (kickedUser === username) {
+                            alert("你已被踢出！");
+                            deleteCookie("username"); // 清空 cookie
+                            location.reload(); // 刷新页面重新输入昵称
+                        }
+                    }
+                    return;
+                }
+    
                 // 渲染普通消息
                 renderMessage(message, "received");
             };
     
             ws.onclose = () => {
-                alert("你已断开连接！");
-                location.reload();
+                //alert("你已断开连接！正在尝试重新连接...");
+                reconnectWebSocket();
             };
+
+            function reconnectWebSocket() {
+                const reconnectInterval = 3000; // 每 3 秒尝试重连一次
+
+                const tryReconnect = () => {
+                    ws = new WebSocket("ws://im.kndxhz.cn:8765");
+
+                    ws.onopen = () => {
+                        console.log("重新连接成功！");
+                        //alert("重新连接成功！");
+                        const username = getCookie("username");
+                        if (username) {
+                            ws.send(`set-name ${username}`);
+                        }
+                    };
+
+                    ws.onclose = () => {
+                        console.log("重连失败，继续尝试...");
+                        setTimeout(tryReconnect, reconnectInterval);
+                    };
+
+                    ws.onmessage = (event) => {
+                        const message = event.data;
+                        renderMessage(message, "received");
+                    };
+                };
+
+                tryReconnect();
+            }
         }
     
         function sendMessage() {

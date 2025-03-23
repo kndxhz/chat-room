@@ -93,13 +93,13 @@ async def handler(websocket):
                 update_connect_file()
                 await broadcast_connection_list()
 
-            elif message.startswith("kick"):
-                ip_to_kick = message.split(" ", 1)[1].strip()
-                for client in connected_clients:
-                    if client.remote_address[0] == ip_to_kick:
-                        await client.close()
-                        print(f"已踢出 IP: {ip_to_kick}")
-                        break
+            # elif message.startswith("kick"):
+            #     ip_to_kick = message.split(" ", 1)[1].strip()
+            #     for client in connected_clients:
+            #         if client.remote_address[0] == ip_to_kick:
+            #             await client.close()
+            #             print(f"已踢出 IP: {ip_to_kick}")
+            #             break
             elif message == "del-all-files":
                 try:
                     for filename in os.listdir(UPLOAD_FOLDER):
