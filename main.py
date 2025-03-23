@@ -18,6 +18,7 @@ ZONE_ID = ""  # 替换为你的 Zone ID
 RECORD_ID = ""  # 替换为你的 Record ID
 DOMAIN = ""
 
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
@@ -100,23 +101,31 @@ async def handler(websocket):
                         print(f"已踢出 IP: {ip_to_kick}")
                         break
             elif message == "del-all-files":
-                for filename in os.listdir(UPLOAD_FOLDER):
-                    file_path = os.path.join(UPLOAD_FOLDER, filename)
-                    os.remove(file_path)
-                print("已删除所有文件")
+                try:
+                    for filename in os.listdir(UPLOAD_FOLDER):
+                        file_path = os.path.join(UPLOAD_FOLDER, filename)
+                        os.remove(file_path)
+                        print("已删除所有文件")
+                except Exception as e:
+                    print(f"删除所有文件失败: {e}")
+                    await websocket.send(f"删除所有文件失败: {e}")
                 await websocket.send("已删除所有文件")
             elif message == "update-dns":
                 update_cloudflare_dns(get_host_ip())
                 await websocket.send("已更新 DNS 记录")
             elif message.startswith("del"):
-                filename = message.split(" ", 1)[1].strip()
-                file_path = os.path.join(UPLOAD_FOLDER, filename)
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                    print(f"已删除文件: {filename}")
-                else:
-                    print(f"文件不存在: {filename}")
-                    await websocket.send(f"文件不存在: {filename}")
+                try:
+                    filename = message.split(" ", 1)[1].strip()
+                    file_path = os.path.join(UPLOAD_FOLDER, filename)
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        print(f"已删除文件: {filename}")
+                    else:
+                        print(f"文件不存在: {filename}")
+                        await websocket.send(f"文件不存在: {filename}")
+                except Exception as e:
+                    print(f"删除文件失败: {e}")
+                    await websocket.send(f"删除文件失败: {e}")
             elif message == "list":
                 with open(CONNECT_FILE, "r") as f:
                     content = f.read()
