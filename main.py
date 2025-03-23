@@ -139,6 +139,7 @@ async def handler(websocket):
                     content = f.read()
                 await websocket.send("当前在线的客户端:\n" + content)
             elif message == "clear":
+                print(f"{websocket.remote_address[0]} 清空了聊天记录")
                 break
             else:
                 name = getattr(websocket, "name", websocket.remote_address[0])
