@@ -90,11 +90,12 @@ async def handler(websocket):
         async for message in websocket:
             print(f"收到消息: {message}")
             if message.startswith("set-name"):
-                name = message.split(" ", 1)[1].strip()
-                websocket.name = name
+                old_name = getattr(websocket, "name", websocket.remote_address[0])
+                new_name = message.split(" ", 1)[1].strip()
+                websocket.name = new_name
                 update_connect_file()
                 await broadcast_connection_list()
-                await websocket.send(f"{websocket.remote_address[0]}已改名为{name}")
+                await websocket.send(f"{old_name} 已改名为 {new_name}")
 
             # elif message.startswith("kick"):
             #     ip_to_kick = message.split(" ", 1)[1].strip()
