@@ -208,7 +208,7 @@
         <div class="instructions">
             <h3>指令说明</h3>
             <p><strong>set-name 名字</strong> 重新设定昵称</p>
-            <p><strong>clear</strong> 清空聊天记录</p>
+            <p><strong>clear</strong> 清空聊天记录(将会重进房间)</p>
         </div>
         <div class="chat-main">
             <div class="chat-header">聊天室</div>
@@ -339,22 +339,28 @@
 
                 // 检查是否是 "kick xxx" 消息
                 if (message.includes("：kick ")) {
-                    const parts = message.split("：kick ");
-                    if (parts.length === 2) {
-                        const kickedUser = parts[1].trim(); // 提取被操作用户名
-                        if (kickedUser === username) {
-                            alert("你已被踢出！");
-                            deleteCookie("username"); // 清空 cookie
-                            location.reload(); // 刷新页面重新输入昵称
-                        }
+                    const content = message.split("：kick ")[1]; // 提取 "：kick " 后的内容
+                    const parts = content.split(" ");
+                    const kickedUser = parts[0]?.trim(); // 提取被踢用户
+                    const cause = parts.slice(1).join(" ").trim(); // 提取原因
+                    if (cause === "name"){
+                        alert(`请重新输入昵称！`);
+                        deleteCookie("username"); // 清空 cookie
+                        location.reload(); // 刷新页面重新输入昵称
+                        return;
+                    }
+                    if (kickedUser === username) {
+                        alert(`你已被踢出！\n原因：${cause || "无"}`);
+                        //deleteCookie("username"); // 清空 cookie
+                        location.reload(); // 刷新页面重新输入昵称
                     }
                     return;
                 }
 
                 // 渲染普通消息
                 renderMessage(message, "received");
-};
-    
+            };
+            
             ws.onclose = () => {
                 //alert("你已断开连接！正在尝试重新连接...");
                 reconnectWebSocket();
@@ -368,7 +374,6 @@
 
                     ws.onopen = () => {
                         console.log("重新连接成功！");
-                        //alert("重新连接成功！");
                         const username = getCookie("username");
                         if (username) {
                             ws.send(`set-name ${username}`);
@@ -389,6 +394,7 @@
                 tryReconnect();
             }
         }
+        
     
         function sendMessage() {
             const messageInput = document.getElementById("messageInput");
@@ -415,7 +421,7 @@
             }
 
             
-        }
+        };
     
         function renderMessage(message, type) {
             const messagesDiv = document.getElementById("messages");
@@ -501,6 +507,7 @@
                     console.error("获取文件列表失败：", error);
                 });
         }
+    
     </script>
 </body>
 </html>
