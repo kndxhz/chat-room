@@ -94,8 +94,12 @@ async def handler(websocket):
                 new_name = message.split(" ", 1)[1].strip()
                 websocket.name = new_name
                 update_connect_file()
-                await broadcast_connection_list()
-                await websocket.send(f"{old_name} 已改名为 {new_name}")
+                # Broadcast the name change to other clients
+                message = f"{old_name} 已改名为 {new_name}"
+                await asyncio.gather(
+                    *[client.send(message) for client in connected_clients if client != websocket]
+                )
+                await websocket.send(f"你已成功改名为 {new_name}")
 
             # elif message.startswith("kick"):
             #     ip_to_kick = message.split(" ", 1)[1].strip()
