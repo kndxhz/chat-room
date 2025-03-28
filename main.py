@@ -5,6 +5,7 @@ import requests
 from flask import Flask, request, send_from_directory, jsonify
 from flask_cors import CORS
 import os
+import datetime
 
 app = Flask(__name__)
 CORS(app)  # 允许跨域
@@ -17,8 +18,6 @@ CLOUDFLARE_API_TOKEN = ""
 ZONE_ID = ""  # 替换为你的 Zone ID
 RECORD_ID = ""  # 替换为你的 Record ID
 DOMAIN = ""
-
-
 
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -60,47 +59,67 @@ def update_connect_file():
             f.write(f"{ip} {name}\n")
 
 
-async def broadcast_connection_list():
-    """向所有客户端广播当前连接的客户端列表"""
-    for client in connected_clients:
-        name = getattr(client, "name", client.remote_address[0])
-        message = f"{name} 进入了房间"
-        await asyncio.gather(
-            *[c.send(message) for c in connected_clients if c != client]
-        )
+async def broadcast_connection_list(client):
+
+    # for client in connected_clients:
+    #     name = getattr(client, "name", client.remote_address[0])
+    #     message = f"{name} 进入了房间"
+    #     await asyncio.gather(
+    #         *[c.send(message) for c in connected_clients if c != client]
+    #     )
+    print(f"{client.remote_address[0]} 进入了房间")
 
 
 async def broadcast_exit_message(client):
-    """广播客户端退出消息"""
-    name = getattr(client, "name", client.remote_address[0])
-    message = f"{name} 退出了房间"
-    await asyncio.gather(*[c.send(message) for c in connected_clients if c != client])
+
+    # name = getattr(client, "name", client.remote_address[0])
+    # message = f"{name} 退出了房间"
+    # await asyncio.gather(*[c.send(message) for c in connected_clients if c != client])
+    print(f"{client.remote_address[0]} 退出了房间")
 
 
 async def handler(websocket):
     # 注册新客户端
     connected_clients.add(websocket)
+    connection_time = datetime.datetime.now()
     try:
         # 获取客户端 IP
         ip = websocket.remote_address[0]
         websocket.name = ip  # 默认名称为 IP 地址
         update_connect_file()
-        await broadcast_connection_list()
+        await broadcast_connection_list(websocket)  # 广播连接消息
 
         async for message in websocket:
-            print(f"收到消息: {message}")
+            print(f"收到消息: {message} {websocket.remote_address[0]}")
             if message.startswith("set-name"):
+                # 获取当前时间
+                current_time = datetime.datetime.now()
+                # 计算时间差
+                time_diff = current_time - connection_time
                 old_name = getattr(websocket, "name", websocket.remote_address[0])
                 new_name = message.split(" ", 1)[1].strip()
-                websocket.name = new_name
-                update_connect_file()
-                # Broadcast the name change to other clients
-                message = f"{old_name} 已改名为 {new_name}"
-                await asyncio.gather(
-                    *[client.send(message) for client in connected_clients if client != websocket]
-                )
-                await websocket.send(f"你已成功改名为 {new_name}")
+                if time_diff.total_seconds() < 3:
+                    print(f"{new_name} {websocket.remote_address[0]} 改名差小于3秒")
+                    websocket.name = new_name
+                    continue
 
+                # 检查昵称是否重复
+                if any(client.name == new_name for client in connected_clients):
+                    print(f"昵称 {new_name} 已被占用")
+                    await websocket.send(f"repeated_nicknames")
+                else:
+                    websocket.name = new_name
+                    update_connect_file()
+                    # Broadcast the name change to other clients
+                    message = f"{old_name} 已改名为 {new_name}"
+                    await asyncio.gather(
+                        *[
+                            client.send(message)
+                            for client in connected_clients
+                            if client != websocket
+                        ]
+                    )
+                    await websocket.send(f"你已成功改名为 {new_name}")
             # elif message.startswith("kick"):
             #     ip_to_kick = message.split(" ", 1)[1].strip()
             #     for client in connected_clients:
@@ -157,7 +176,7 @@ async def handler(websocket):
         # 注销客户端
         connected_clients.remove(websocket)
         update_connect_file()
-        await broadcast_connection_list()
+        await broadcast_exit_message(websocket)
 
 
 async def run_websocket_server():

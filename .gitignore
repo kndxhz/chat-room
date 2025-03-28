@@ -1,6 +1,2 @@
-nginx-1.27.4
 python-3.13.2-embed-amd64
-1.启动后端.bat
-2.启动前端.bat
-查看前端实时日志.ps1
-强制结束所有进程.bat
+nginx-1.27.4
