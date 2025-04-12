@@ -6,21 +6,32 @@ from flask import Flask, request, send_from_directory, jsonify
 from flask_cors import CORS
 import os
 import datetime
+import random
+import time
+import logging
+import keyboard
+import pyperclip
 
 app = Flask(__name__)
 CORS(app)  # 允许跨域
 connected_clients = set()
 UPLOAD_FOLDER = "./files"
 CONNECT_FILE = "./connect.txt"
+HISTORY_FILE = "./history.txt"
+KEY_FILE = "./key.txt"
+BAN_FILE = "./ban.txt"
 
 
 CLOUDFLARE_API_TOKEN = ""
 ZONE_ID = ""  # 替换为你的 Zone ID
 RECORD_ID = ""  # 替换为你的 Record ID
 DOMAIN = ""
+LAST_ALT_PRESS_TIME = 0
+DOUBLE_CLICK_THRESHOLD = 0.3  # 双击时间阈值（秒）
 
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 
 
 @app.route("/upload", methods=["POST"])
@@ -28,8 +39,10 @@ def upload_file():
     if "file" not in request.files:
         return jsonify({"error": "没有找到文件"}), 400
     file = request.files["file"]
+    file.filename = file.filename.replace(" ", "")
     if file.filename == "":
         return jsonify({"error": "文件名为空"}), 400
+
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(file_path)
     return jsonify({"message": f"文件 {file.filename} 上传成功"}), 200
@@ -52,11 +65,27 @@ def file_list():
 
 def update_connect_file():
     """更新 connect.txt 文件，记录所有连接的客户端信息"""
-    with open(CONNECT_FILE, "w") as f:
+    with open(CONNECT_FILE, "w", encoding="utf-8") as f:
         for client in connected_clients:
             name = getattr(client, "name", client.remote_address[0])
             ip = client.remote_address[0]
             f.write(f"{ip} {name}\n")
+
+
+def on_alt_press(event):
+    global LAST_ALT_PRESS_TIME
+    
+    if event.name == 'alt' and event.event_type == 'down':
+        current_time = time.time()
+        time_since_last_alt = current_time - LAST_ALT_PRESS_TIME
+        
+        # 如果两次Alt按下时间间隔小于阈值，则认为是双击
+        if time_since_last_alt < DOUBLE_CLICK_THRESHOLD:
+            with open(KEY_FILE, "r", encoding="utf-8") as f:
+                pyperclip.copy(f.read())
+            
+        
+        LAST_ALT_PRESS_TIME = current_time
 
 
 async def broadcast_connection_list(client):
@@ -68,6 +97,20 @@ async def broadcast_connection_list(client):
     #         *[c.send(message) for c in connected_clients if c != client]
     #     )
     print(f"{client.remote_address[0]} 进入了房间")
+    with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    tem_ = []
+    for i in lines:
+        if "kick" in i:
+            continue
+
+        tem_.append(i.replace("#换行", "\n"))
+    lines = tem_
+    # print(lines)
+    if lines:
+        lines = lines[-100:]  # 只发送最后100行历史记录
+        lines.append("----以上是历史记录----\n")
+        await asyncio.gather(*[client.send(line) for line in lines])
 
 
 async def broadcast_exit_message(client):
@@ -78,13 +121,25 @@ async def broadcast_exit_message(client):
     print(f"{client.remote_address[0]} 退出了房间")
 
 
+async def close_websocket_by_ip(ip):
+    for websocket in connected_clients:
+        if websocket.remote_address[0] == ip:
+            await websocket.close()
+
+
 async def handler(websocket):
+    global key
     # 注册新客户端
     connected_clients.add(websocket)
     connection_time = datetime.datetime.now()
     try:
         # 获取客户端 IP
         ip = websocket.remote_address[0]
+        if ip in open(BAN_FILE, "r", encoding="utf-8").read():
+            print(f"{ip} 尝试连接，但被禁止")
+            await websocket.send("你已被封禁")
+            await websocket.close()
+            return
         websocket.name = ip  # 默认名称为 IP 地址
         update_connect_file()
         await broadcast_connection_list(websocket)  # 广播连接消息
@@ -120,13 +175,43 @@ async def handler(websocket):
                         ]
                     )
                     await websocket.send(f"你已成功改名为 {new_name}")
-            # elif message.startswith("kick"):
-            #     ip_to_kick = message.split(" ", 1)[1].strip()
-            #     for client in connected_clients:
-            #         if client.remote_address[0] == ip_to_kick:
-            #             await client.close()
-            #             print(f"已踢出 IP: {ip_to_kick}")
-            #             break
+            elif message.startswith("change-key"):
+                key = str(random.randint(10000, 99999))
+                with open(KEY_FILE, "w", encoding="utf-8") as f:
+                    f.write("")
+                    f.write(key)
+                print(f"秘钥：{key}")
+                await websocket.send("已更新秘钥")
+
+            elif "kick" in message and key not in message:
+                pass
+            elif message.startswith("ban") and key in message:
+                try:
+                    ip = message.split(" ")[1]
+                    if ip.count(".") != 3:
+                        await websocket.send("ip格式错误")
+                        return
+                    print(f"{ip} 被 ban")
+                    with open(BAN_FILE, "a", encoding="utf-8") as f:
+                        f.write(ip + "\n")
+                    await websocket.send(f"{ip} 被 ban")
+                    await close_websocket_by_ip(ip)
+                except Exception as e:
+                    print(f"ban 失败: {e}")
+                    await websocket.send(f"ban 失败: {e}")
+            elif message.startswith("unban") and key in message:
+                try:
+                    ip = message.split(" ")[1]
+                    print(f"{ip} 被unban")
+                    with open(BAN_FILE, "w+", encoding="utf-8") as f:
+                        lines = f.readlines()
+                        lines = [line for line in lines if line.strip() != ip]
+                        f.writelines(lines)
+
+                except Exception as e:
+                    print(f"unban 失败: {e}")
+                    await websocket.send(f"unban 失败: {e}")
+
             elif message == "del-all-files":
                 try:
                     for filename in os.listdir(UPLOAD_FOLDER):
@@ -153,8 +238,10 @@ async def handler(websocket):
                 except Exception as e:
                     print(f"删除文件失败: {e}")
                     await websocket.send(f"删除文件失败: {e}")
+
             elif message == "list":
-                with open(CONNECT_FILE, "r") as f:
+                update_connect_file()
+                with open(CONNECT_FILE, "r", encoding="utf-8") as f:
                     content = f.read()
                 await websocket.send("当前在线的客户端:\n" + content)
             elif message == "clear":
@@ -162,6 +249,9 @@ async def handler(websocket):
             else:
                 name = getattr(websocket, "name", websocket.remote_address[0])
                 formatted_message = f"{name}：{message}"
+                with open(HISTORY_FILE, "a", encoding="utf-8") as f:
+
+                    f.write(formatted_message.replace("\n", "#换行") + "\n")
                 # 将消息广播给所有连接的客户端
                 await asyncio.gather(
                     *[
@@ -225,10 +315,18 @@ def run_flask_app():
 
 
 if __name__ == "__main__":
-    # 程序启动时清空 connect.txt 文件
-    with open(CONNECT_FILE, "w") as f:
-        f.write("")
+    logging.getLogger("werkzeug").setLevel(logging.WARNING)
+    app.logger.setLevel(logging.WARNING)
+    files_to_clear = [CONNECT_FILE, HISTORY_FILE, KEY_FILE]
+    for file_path in files_to_clear:
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write("")
+    key = str(random.randint(10000, 99999))
+    with open(KEY_FILE, "w", encoding="utf-8") as f:
+        f.write(key)
+    print(f"秘钥：{key}")
     update_cloudflare_dns(get_host_ip())
+    keyboard.hook(on_alt_press)
     loop = asyncio.get_event_loop()
     # 同时运行 Flask 和 WebSocket 服务器
     loop.run_in_executor(None, run_flask_app)

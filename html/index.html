@@ -10,13 +10,14 @@
             margin: 0;
             padding: 0;
             font-family: Arial, sans-serif;
-            background: url('https://t.alcy.cc/ycy') no-repeat center center fixed;
-            background-size: cover;
-            display: flex;
-            justify-content: center;
-            align-items: center;
             height: 100vh;
             overflow: hidden;
+            color: #333;
+            /* 关键渲染样式内联避免FOUC */
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+            background-size: cover;
         }
 
         .chat-container {
@@ -29,6 +30,8 @@
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
             display: flex;
             overflow: hidden;
+            transition: all 0.3s ease;
+            /* 添加过渡效果 */
         }
 
         .chat-main {
@@ -52,14 +55,13 @@
             padding: 15px;
             overflow-y: auto;
             color: #333;
+            max-width: 900px;
+            font-size: 1.1em;
+            /* 增大字体，提高可读性 */
         }
 
         .chat-messages p {
             margin: 5px 0;
-        }
-
-        .chat-messages {
-            padding: 15px;
         }
 
         .chat-input {
@@ -74,13 +76,16 @@
             position: relative;
         }
 
-        .chat-input input {
+        .chat-input input,
+        .chat-input textarea {
             flex: 1;
             padding: 10px;
             border: none;
             border-radius: 5px;
             outline: none;
             font-size: 1em;
+            background: rgba(255, 255, 255, 0.7);
+            /* 增强背景对比度 */
         }
 
         .chat-input button {
@@ -148,6 +153,25 @@
             border-radius: 10px;
             word-wrap: break-word;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            font-size: 1.1em;
+            /* 增大字体 */
+            ;
+        }
+
+        .message-content.sent {
+            background: rgba(0, 123, 255, 0.1);
+            border-left: 3px solid #007bff;
+            margin-left: auto;
+            /* 右对齐 */
+            border-radius: 10px 0 10px 10px;
+        }
+
+        .message-content.received {
+            background: rgba(255, 255, 255, 0.5);
+            border-left: 3px solid #333;
+            margin-right: auto;
+            /* 左对齐 */
+            border-radius: 0 10px 10px 10px;
         }
 
         .message-content pre {
@@ -157,6 +181,18 @@
             padding: 1em;
             border-radius: 5px;
             overflow-x: auto;
+        }
+
+        .message-content.sent {
+            background: rgba(0, 123, 255, 0.1);
+            border-left: 3px solid #007bff;
+            text-align: right;
+        }
+
+        .message-content.received {
+            background: rgba(255, 255, 255, 0.5);
+            border-left: 3px solid #333;
+            text-align: left;
         }
 
         .copy-button {
@@ -203,10 +239,10 @@
             border-radius: 5px;
         }
 
-
         .code-block-wrapper {
             position: relative;
             margin: 10px 0;
+            text-align: left;
         }
 
         .code-block-wrapper .copy-button {
@@ -221,13 +257,15 @@
             border-radius: 4px;
         }
 
-        /* 添加媒体查询以适配手机端 */
+        /* 移动端适配 */
         @media (max-width: 768px) {
             body {
                 justify-content: flex-start;
                 align-items: flex-start;
                 height: auto;
                 overflow: auto;
+                font-size: 14px;
+                /* 减小基础字体 */
             }
 
             .chat-container {
@@ -236,6 +274,7 @@
                 border-radius: 0;
                 box-shadow: none;
                 flex-direction: column;
+                /* 垂直布局 */
             }
 
             .chat-main {
@@ -247,6 +286,8 @@
             .chat-messages {
                 height: 50vh;
                 padding: 10px;
+                font-size: 1em;
+                /* 调整字体大小 */
             }
 
             .chat-input {
@@ -257,13 +298,18 @@
                 position: relative;
             }
 
-            .chat-input input {
+            .chat-input input,
+            .chat-input textarea {
                 margin-bottom: 10px;
                 width: 100%;
+                /* 全宽显示 */
+                font-size: 1em;
             }
 
             .chat-input button {
                 width: 100%;
+                /* 全宽按钮 */
+                font-size: 1em;
             }
 
             .file-list {
@@ -307,21 +353,11 @@
             }
 
             .chat-messages {
-                background: rgba(255, 255, 255, 0.1);
+                background: rgba(255, 255, 255, 0.5);
             }
 
             .message-content {
                 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            }
-
-            .message-content.sent {
-                background: rgba(0, 123, 255, 0.1);
-                border-left: 3px solid #007bff;
-            }
-
-            .message-content.received {
-                background: rgba(255, 255, 255, 0.5);
-                border-left: 3px solid #333;
             }
 
             .chat-input button {
@@ -333,19 +369,19 @@
             }
         }
     </style>
-    <!-- <script src="js/marked.min.js"></script>
+    <script src="js/marked.min.js"></script>
     <script src="js/purify.min.js"></script>
     <script src="js/highlight.min.js"></script>
-    <script src="js/highlight.javascript.min.js"></script>
+    <!-- <script src="js/highlight.javascript.min.js"></script>
     <script src="js/highlight.python.min.js"></script>
-    <script src="js/highlight.xml.min.js"></script>
+    <script src="js/highlight.xml.min.js"></script> -->
     <link rel="stylesheet" href="css/default.min.css">
-    <link rel="stylesheet" href="css/github.min.css"> -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.0/styles/default.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/marked@3.0.8/lib/marked.min.js"></script>
+    <link rel="stylesheet" href="css/github.min.css">
+    <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.0/styles/default.min.css"> -->
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/3.0.8/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.3/purify.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script> -->
     <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/xml.min.js"></script> -->
@@ -361,7 +397,8 @@
             <p><strong>del 文件名</strong> 删除某个文件</p>
             <p><strong>del-all-files</strong> 删除全部文件</p>
             <p><strong>update-dns</strong> 更新dns记录</p>
-            <p><strong>```代码```</strong> 代码块</p>
+            <p><strong>包含4缩进或编程语言关键词的文本</strong> 自动解析代码块</p>
+            <p><strong>任何Markdown</strong> 解析为对应样式</p>
         </div>
         <div class="chat-main">
             <div class="chat-header">聊天室</div>
@@ -371,7 +408,7 @@
                     <textarea id="messageInput" placeholder="输入消息... (Shift+Enter换行,Enter发送)"></textarea>
                     <button onclick="sendMessage()">发送</button>
                 </div>
-            
+
                 <div class="chat-input-row">
                     <input type="file" id="fileInput">
                     <button onclick="uploadFile()">上传文件</button>
@@ -395,7 +432,7 @@
 
         // 初始化输入框事件
         const messageInput = document.getElementById('messageInput');
-        
+
         // 输入时自动调整高度
         messageInput.addEventListener('input', () => {
             autoResize(messageInput);
@@ -404,19 +441,19 @@
         // 修正后的marked配置
         marked.setOptions({
             breaks: false,
-            highlight: function(code, lang) {
+            highlight: function (code, lang) {
                 // 自动检测语言
                 const language = hljs.getLanguage(lang) ? lang : 'plaintext';
-                
+
                 try {
-                    return hljs.highlight(code, { 
+                    return hljs.highlight(code, {
                         language,
-                        ignoreIllegals: true 
+                        ignoreIllegals: true
                     }).value;
                 } catch (e) {
-                    return hljs.highlight(code, { 
+                    return hljs.highlight(code, {
                         language: 'plaintext',
-                        ignoreIllegals: true 
+                        ignoreIllegals: true
                     }).value;
                 }
             },
@@ -427,7 +464,7 @@
         const renderer = new marked.Renderer();
 
         // 自定义代码块渲染方法
-        renderer.code = function(code, infostring, escaped) {
+        renderer.code = function (code, infostring, escaped) {
             const lang = (infostring || '').match(/\S*/)[0];
             return `
                 <div class="code-block-wrapper">
@@ -464,9 +501,61 @@
         function deleteCookie(name) {
             document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/`;
         }
+        function setBackgroundImage() {
+            const imageUrl = 'https://t.alcy.cc/fj   ';
+            const fallbackImageUrl = './img/nahida.jpg';
+            const timeoutDuration = 5000;
+
+            // 使用 fetch + no-cors 模式绕过 CORS 限制
+            const controller = new AbortController();
+            const { signal } = controller;
+
+            const timeout = setTimeout(() => {
+                console.log('网络检测超时，切换到备用图片');
+                controller.abort();
+                applyFallbackStyle();
+            }, timeoutDuration);
+
+            fetch('http://wifi.vivo.com.cn/generate_204', {
+                method: 'HEAD',         // 轻量级 HEAD 请求
+                mode: 'no-cors',        // 绕过 CORS 限制
+                signal: controller.signal
+            })
+                .then(() => {
+                    // 只要请求能到达服务器即视为成功
+                    clearTimeout(timeout);
+                    applyPrimaryStyle();
+                })
+                .catch(() => {
+                    // 处理网络错误/超时/主动终止
+                    clearTimeout(timeout);
+                    console.log('网络检测失败，切换到备用图片');
+                    applyFallbackStyle();
+                });
+
+            // 提取公共样式设置函数
+            function applyPrimaryStyle() {
+                document.body.style.backgroundImage = `url(${imageUrl})`;
+                applyCommonStyle();
+            }
+
+            function applyFallbackStyle() {
+                document.body.style.backgroundImage = `url(${fallbackImageUrl})`;
+                applyCommonStyle();
+            }
+
+            function applyCommonStyle() {
+                document.body.style.backgroundSize = 'cover';
+                document.body.style.backgroundRepeat = 'no-repeat';
+                document.body.style.backgroundPosition = 'center center';
+                document.body.style.backgroundAttachment = 'fixed';
+            }
+        }
 
         // 页面加载时要求用户输入名称
         window.onload = () => {
+            console.log("%c    __             __     __                           \n   / /______  ____/ /  __/ /_  ____                    \n  / //_/ __ \\/ __  / |/_/ __ \\/_  /                    \n / ,< / / / / /_/ />  </ / / / / /_                    \n/_/|_/_/_/_/\\__,_/_/|_/_/ /_/ /___/                    \n  _____/ /_  ____ _/ /_      _________  ____  ____ ___ \n / ___/ __ \\/ __ `/ __/_____/ ___/ __ \\/ __ \\/ __ `__ \\\n/ /__/ / / / /_/ / /_/_____/ /  / /_/ / /_/ / / / / / /\n\\___/_/ /_/\\__,_/\\__/     /_/   \\____/\\____/_/ /_/ /_/ \n                                                       \n%cgithub.com/kndxhz/chat-room\n切勿直接扒源码!前端只是个静态页面!", 'color: green', 'color: red; background: yellow');
+            //console.log(" ")
             username = getCookie("username");
             if (!username) {
                 username = prompt("请输入你的昵称：");
@@ -480,6 +569,8 @@
             connectWebSocket();
             fetchFileList();
             setInterval(fetchFileList, 3000);
+            setBackgroundImage();
+
 
             if (Notification.permission !== "granted") {
                 Notification.requestPermission().then(permission => {
@@ -495,20 +586,20 @@
             // 监听输入框的回车事件
             const messageInput = document.getElementById("messageInput");
             messageInput.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                sendMessage();
-                // 发送后重置输入框高度
-                setTimeout(() => {
-                    messageInput.style.height = 'auto';
-                }, 0);
-            }
-            
-            // 阻止默认回车行为（除了Shift+Enter）
-            if (event.key === 'Enter' && event.shiftKey) {
-                setTimeout(() => autoResize(messageInput), 0);
-            }
-        });
+                if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    sendMessage();
+                    // 发送后重置输入框高度
+                    setTimeout(() => {
+                        messageInput.style.height = 'auto';
+                    }, 0);
+                }
+
+                // 阻止默认回车行为（除了Shift+Enter）
+                if (event.key === 'Enter' && event.shiftKey) {
+                    setTimeout(() => autoResize(messageInput), 0);
+                }
+            });
 
             // 添加拖放上传文件功能（排除输入框）
             document.addEventListener("dragover", (event) => {
@@ -569,14 +660,14 @@
                     const content = message.split("：kick ")[1]; // 提取 "：kick " 后的内容
                     const parts = content.split(" ");
                     const kickedUser = parts[0]?.trim(); // 提取被踢用户
-                    const cause = parts.slice(1).join(" ").trim(); // 提取原因
-                    if (cause === "name") {
+                    const cause = parts[1]?.trim(); // 提取原因（固定的第三个段）
+                    if (cause === "name" && kickedUser === username) {
                         alert(`请重新输入昵称！`);
                         deleteCookie("username"); // 清空 cookie
                         location.reload(); // 刷新页面重新输入昵称
                         return;
                     }
-                    if (kickedUser === username) {
+                    if (kickedUser === username && kickedUser === username) {
                         alert(`你已被踢出！\n原因：${cause || "无"}`);
                         //deleteCookie("username"); // 清空 cookie
                         location.reload(); // 刷新页面重新输入昵称
@@ -660,43 +751,59 @@
         function sendMessage() {
             const messageInput = document.getElementById("messageInput");
             const message = messageInput.value.trim();
-            
-
 
             if (message) {
                 // 保留换行格式（替换为\n）
-                const formattedMessage = message.replace(/\n/g, '\n');
-                ws.send(formattedMessage);
-                renderMessage(`${username}: ${formattedMessage}`, "sent");
+                let formattedMessage = message;
+
+                // 检查是否包含代码块
+                if (message.includes("```")) {
+                    formattedMessage = message;
+                } else {
+                    // 检查是否是代码格式（以4个空格开头或包含特定关键字）
+                    if (/^ {4}|(\n {4})/m.test(message) || (/(\bif\b|\bfor\b|\bwhile\b|\bdef\b|\bclass\b|\breturn\b|\bdef\b|\bprint\b)/.test(message))) {
+                        formattedMessage = "```\n" + message + "\n```";
+                    }
+                }
+
+                // 检查是否是 "set-name xxx" 指令
+                if (message.startsWith("set-name ")) {
+                    const newUsername = message.split("set-name ")[1].trim();
+                    if (newUsername) {
+                        username = newUsername; // 更新本地变量
+                        setCookie("username", newUsername, 1); // 更新 cookie
+                        console.log(`昵称已更新为：${newUsername}`);
+                    }
+                } else if (message !== "clear") {
+                    // 组合用户名和消息内容
+                    const messageWithUsername = `${formattedMessage}`;
+                    ws.send(messageWithUsername);
+                    renderMessage(`${username}：` + messageWithUsername, "sent", message);
+                }
+
                 messageInput.value = '';
-                
+
                 // 触发input事件以重置高度
                 const event = new Event('input');
                 messageInput.dispatchEvent(event);
             }
-            // 检查是否是 "set-name xxx" 指令
-            if (message.startsWith("set-name ")) {
-                const newUsername = message.split("set-name ")[1].trim();
-                if (newUsername) {
-                    username = newUsername; // 更新本地变量
-                    setCookie("username", newUsername, 1); // 更新 cookie
-                    console.log(`昵称已更新为：${newUsername}`);
-                }
-            }
+
             // 检查是否是 "clear" 指令
-            if (message == "clear") {
+            if (message === "clear") {
                 const chatMessages = document.getElementById("messages");
                 chatMessages.innerHTML = "";
             }
+        }
 
-
-        };
-
-        function renderMessage(message, type) {
+        function renderMessage(message, type, originalMessage = "") {
             const messagesDiv = document.getElementById("messages");
             const container = document.createElement("div");
+            message = message.replace("<", "&lt;").replace(">", "&gt;");
+            originalMessage = originalMessage.replace("<", "&lt;").replace(">", "&gt;");
             container.className = "message-container";
-            
+            if (message.includes("kick") || message.includes("ban") || message.includes("unban")) {
+                return
+            }
             // 预处理消息内容（添加安全过滤）
             const sanitizedMessage = DOMPurify.sanitize(message
                 .replace(/```(\s*\n*)/g, '```\n')
@@ -705,7 +812,7 @@
 
             const messageElement = document.createElement("div");
             messageElement.className = "message-content";
-            
+
             // 启用 marked 的 breaks 选项
             marked.setOptions({
                 breaks: true // 保留换行符
@@ -719,19 +826,51 @@
                 messageElement.textContent = sanitizedMessage;
             }
 
-            // 后处理代码块（保持原有逻辑）
+            // 添加代码块功能
             messageElement.querySelectorAll('pre code').forEach(block => {
                 hljs.highlightElement(block);
+                const pre = block.parentElement;
+                pre.style.position = 'relative';
+
+                const copyButton = document.createElement('button');
+                copyButton.className = "copy-button";
+                copyButton.innerHTML = "📋";
+                copyButton.onclick = () => {
+                    try {
+
+
+                        navigator.clipboard.writeText(block.textContent)
+                            .then(() => {
+                                copyButton.innerHTML = "✓";
+                                setTimeout(() => copyButton.innerHTML = "📋", 1500);
+                            });
+                    }
+                    catch (e) {
+                        const textArea = document.createElement('textarea')
+                        textArea.value = block.textContent
+                        // 使text area不在viewport，同时设置不可见
+                        document.body.appendChild(textArea)
+                        textArea.focus()
+                        textArea.select()
+                        document.execCommand('copy')
+                        textArea.remove()
+
+                        copyButton.innerHTML = "✓";
+                        setTimeout(() => copyButton.innerHTML = "📋", 1500);
+
+
+                    }
+                };
+                pre.appendChild(copyButton);
             });
 
-            // 添加类型样式
-            messageElement.style.background = type === "sent" 
-                ? "rgba(0, 123, 255, 0.1)" 
+            // 样式设置
+            messageElement.style.background = type === "sent"
+                ? "rgba(0, 123, 255, 0.1)"
                 : "rgba(255, 255, 255, 0.5)";
-
-            // 保留代码块中的换行符
             messageElement.querySelectorAll('pre').forEach(pre => {
-                pre.style.whiteSpace = 'pre-wrap'; // 确保换行符被保留
+                pre.style.whiteSpace = 'pre-wrap';
+                pre.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
             });
 
             container.appendChild(messageElement);
