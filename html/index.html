@@ -423,6 +423,7 @@
     <script>
         let ws;
         let username;
+        let history;
 
         function autoResize(textarea) {
             textarea.style.height = 'auto';
@@ -595,6 +596,13 @@
                     }, 0);
                 }
 
+
+                if (event.key === 'ArrowUp') { // 按下向上箭头键
+                    if (!event.target.value){
+                        messageInput.value = history;
+                    }
+
+                }
                 // 阻止默认回车行为（除了Shift+Enter）
                 if (event.key === 'Enter' && event.shiftKey) {
                     setTimeout(() => autoResize(messageInput), 0);
@@ -801,6 +809,7 @@
             message = message.replace("<", "&lt;").replace(">", "&gt;");
             originalMessage = originalMessage.replace("<", "&lt;").replace(">", "&gt;");
             container.className = "message-container";
+            history = originalMessage;
             if (message.includes("kick") || message.includes("ban") || message.includes("unban")) {
                 return
             }
@@ -875,7 +884,10 @@
 
             container.appendChild(messageElement);
             messagesDiv.appendChild(container);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            if (type === 'sent'){
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }
+            
         }
 
 
