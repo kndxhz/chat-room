@@ -33,7 +33,6 @@ DOUBLE_CLICK_THRESHOLD = 0.3  # 双击时间阈值（秒）
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
-
 @app.route("/upload", methods=["POST"])
 def upload_file():
     if "file" not in request.files:
@@ -51,6 +50,18 @@ def upload_file():
 @app.route("/download/<filename>", methods=["GET"])
 def download_file(filename):
     try:
+        client_ip = request.remote_addr
+        with open(CONNECT_FILE, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            nickname = next(
+                (
+                    line.split(" ", 1)[1].strip()
+                    for line in lines
+                    if line.startswith(client_ip)
+                ),
+                client_ip,
+            )
+        print(f"{nickname} 下载了 {filename}")
         return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
     except FileNotFoundError:
         return jsonify({"error": "文件未找到"}), 404
@@ -74,17 +85,16 @@ def update_connect_file():
 
 def on_alt_press(event):
     global LAST_ALT_PRESS_TIME
-    
-    if event.name == 'alt' and event.event_type == 'down':
+
+    if event.name == "alt" and event.event_type == "down":
         current_time = time.time()
         time_since_last_alt = current_time - LAST_ALT_PRESS_TIME
-        
+
         # 如果两次Alt按下时间间隔小于阈值，则认为是双击
         if time_since_last_alt < DOUBLE_CLICK_THRESHOLD:
             with open(KEY_FILE, "r", encoding="utf-8") as f:
                 pyperclip.copy(f.read())
-            
-        
+
         LAST_ALT_PRESS_TIME = current_time
 
 
@@ -152,18 +162,27 @@ async def handler(websocket):
                 # 计算时间差
                 time_diff = current_time - connection_time
                 old_name = getattr(websocket, "name", websocket.remote_address[0])
-                new_name = message.split(" ", 1)[1].strip()
-                if time_diff.total_seconds() < 3:
-                    print(f"{new_name} {websocket.remote_address[0]} 改名差小于3秒")
-                    websocket.name = new_name
-                    continue
+                new_name = message[9:]
 
                 # 检查昵称是否重复
-                if any(client.name == new_name for client in connected_clients):
+                with open(CONNECT_FILE, "r", encoding="utf-8") as f:
+                    names = [line.split(" ", 1)[1].strip() for line in f.readlines()]
+                if new_name in names:
                     print(f"昵称 {new_name} 已被占用")
                     await websocket.send(f"repeated_nicknames")
-                else:
+
+                elif time_diff.total_seconds() < 3:
+                    print(f"{new_name} {websocket.remote_address[0]} 改名差小于3秒")
                     websocket.name = new_name
+                    update_connect_file()
+
+                    websocket.name = new_name
+
+                elif " " in new_name:
+                    print(f"昵称 {new_name} 包含空格")
+                    await websocket.send(f"nickname_space")
+
+                else:
                     update_connect_file()
                     # Broadcast the name change to other clients
                     message = f"{old_name} 已改名为 {new_name}"
@@ -175,6 +194,8 @@ async def handler(websocket):
                         ]
                     )
                     await websocket.send(f"你已成功改名为 {new_name}")
+
+                update_connect_file()
             elif message.startswith("change-key"):
                 key = str(random.randint(10000, 99999))
                 with open(KEY_FILE, "w", encoding="utf-8") as f:
@@ -196,6 +217,13 @@ async def handler(websocket):
                         f.write(ip + "\n")
                     await websocket.send(f"{ip} 被 ban")
                     await close_websocket_by_ip(ip)
+                    await asyncio.gather(
+                        *[
+                            client.send(f"{ip} 已被封禁")
+                            for client in connected_clients
+                            if client != websocket
+                        ]
+                    )
                 except Exception as e:
                     print(f"ban 失败: {e}")
                     await websocket.send(f"ban 失败: {e}")
