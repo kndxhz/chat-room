@@ -186,6 +186,7 @@ async def handler(websocket):
                     update_connect_file()
                     # Broadcast the name change to other clients
                     message = f"{old_name} 已改名为 {new_name}"
+                    websocket.name = new_name
                     await asyncio.gather(
                         *[
                             client.send(message)

@@ -20,6 +20,17 @@
             background-size: cover;
         }
 
+        img{
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .lightbox {
+            width: 80%;
+            height: 80%;
+        }
+
         .chat-container {
             width: 90%;
             max-width: 75%;
@@ -55,7 +66,7 @@
             padding: 15px;
             overflow-y: auto;
             color: #333;
-            max-width: 900px;
+            max-width: 100%;
             font-size: 1.1em;
             /* 增大字体，提高可读性 */
         }
@@ -154,6 +165,7 @@
             word-wrap: break-word;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
             font-size: 1.1em;
+            max-width: 100%
             /* 增大字体 */
             ;
         }
@@ -212,6 +224,7 @@
         .copy-button:hover {
             opacity: 1;
         }
+        
 
         .message-content code {
             background: rgba(0, 0, 0, 0.1);
@@ -312,6 +325,8 @@
                 font-size: 1em;
             }
 
+            
+
             .file-list {
                 width: 100%;
                 height: auto;
@@ -372,11 +387,14 @@
     <script src="js/marked.min.js"></script>
     <script src="js/purify.min.js"></script>
     <script src="js/highlight.min.js"></script>
+    <script src="js/jquery.min.js"></script>
+    <script src="js/lightbox.min.js"></script>
     <!-- <script src="js/highlight.javascript.min.js"></script>
     <script src="js/highlight.python.min.js"></script>
     <script src="js/highlight.xml.min.js"></script> -->
     <link rel="stylesheet" href="css/default.min.css">
     <link rel="stylesheet" href="css/github.min.css">
+    <link rel="stylesheet" href="css/lightbox.min.css">
     <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.0/styles/default.min.css"> -->
     <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/3.0.8/marked.min.js"></script>
@@ -384,7 +402,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script> -->
     <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/xml.min.js"></script> -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/xml.min.js"></script>
+    <script src="https://cdn.staticfile.net/jquery/1.10.2/jquery.min.js"></script> 
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/css/lightbox.min.css" rel="stylesheet">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/js/lightbox.min.js"></script>-->
 </head>
 
 <body>
@@ -461,10 +483,20 @@
             langPrefix: 'hljs language-'
         });
 
-        // 单独配置渲染器方法
+        // 创建自定义渲染器
         const renderer = new marked.Renderer();
 
-        // 自定义代码块渲染方法
+        // 自定义图片渲染方法
+        renderer.image = function (href, title, text) {
+            // Lightbox 需要每个图片被包裹在 <a> 标签中，并带有 data-lightbox 属性
+            return `
+                <a href="${href}" data-lightbox="image" data-title="${title || ''}">
+                    <img src="${href}" alt="${text || ''}">
+                </a>
+            `;
+        };
+
+        // 设置其他自定义渲染方法（如代码块）
         renderer.code = function (code, infostring, escaped) {
             const lang = (infostring || '').match(/\S*/)[0];
             return `
@@ -474,7 +506,8 @@
             `;
         };
 
-        marked.setOptions({ renderer }); // 应用自定义渲染器
+        // 应用自定义渲染器
+        marked.setOptions({ renderer });
 
 
         // 设置 cookie
@@ -598,7 +631,7 @@
 
 
                 if (event.key === 'ArrowUp') { // 按下向上箭头键
-                    if (!event.target.value){
+                    if (!event.target.value) {
                         messageInput.value = history;
                     }
 
@@ -612,45 +645,43 @@
             // 添加拖放上传文件功能（排除输入框）
             document.addEventListener("dragover", (event) => {
                 event.preventDefault();
-                if (!isInsideInput(event.target)) {
-                    document.body.style.border = "2px dashed #007bff";
-                }
+
+                document.body.style.border = "2px dashed #007bff";
+            
             });
 
             document.addEventListener("dragleave", (event) => {
-                if (!isInsideInput(event.target)) {
-                    document.body.style.border = "none";
-                }
+
+                document.body.style.border = "none";
+            
             });
 
             document.addEventListener("drop", (event) => {
                 event.preventDefault();
                 document.body.style.border = "none";
-                if (!isInsideInput(event.target)) {
-                    const files = event.dataTransfer.files;
-                    if (files.length > 0) {
-                        uploadDroppedFile(files[0]);
-                    }
+
+                const files = event.dataTransfer.files;
+                if (files.length > 0) {
+                    uploadDroppedFile(files[0]);
                 }
+
             });
 
             // 添加 Ctrl+V 上传文件功能（排除输入框）
             document.addEventListener("paste", (event) => {
-                if (!isInsideInput(event.target)) {
-                    const items = event.clipboardData.items;
-                    for (let item of items) {
-                        if (item.kind === "file") {
-                            const file = item.getAsFile();
-                            uploadDroppedFile(file);
-                        }
+
+                const items = event.clipboardData.items;
+                for (let item of items) {
+                    if (item.kind === "file") {
+                        const file = item.getAsFile();
+                        uploadDroppedFile(file);
                     }
                 }
+                
             });
         };
 
-        function isInsideInput(target) {
-            return target.tagName === "INPUT" || target.tagName === "TEXTAREA";
-        }
+
 
         function connectWebSocket() {
             ws = new WebSocket("ws://im.kndxhz.cn:8765");
@@ -662,7 +693,20 @@
 
             ws.onmessage = (event) => {
                 const message = event.data;
-
+                if (message === "repeated_nicknames") {
+                    alert("昵称重复，请重新输入！");
+                    deleteCookie("username"); // 清空 cookie
+                    location.reload(); // 刷新页面重新输入昵称
+                    return;
+                }
+                if (message === "nickname_space") {
+                    alert("昵称包含空格，请重新输入！");
+                    deleteCookie("username"); // 清空 cookie
+                    location.reload(); // 刷新页面重新输入昵称
+                    return;
+                }
+                
+                
                 // 检查是否是 "kick xxx" 消息
                 if (message.includes("：kick ")) {
                     const content = message.split("：kick ")[1]; // 提取 "：kick " 后的内容
@@ -682,12 +726,7 @@
                     }
                     return;
                 }
-                if (message === "repeated_nicknames") {
-                    alert("昵称重复，请重新输入！");
-                    deleteCookie("username"); // 清空 cookie
-                    location.reload(); // 刷新页面重新输入昵称
-                    return;
-                }
+                
 
                 // // 检查是否是 "ban xxx" 消息
                 // if (message.includes("：ban ")) {
@@ -776,11 +815,18 @@
 
                 // 检查是否是 "set-name xxx" 指令
                 if (message.startsWith("set-name ")) {
-                    const newUsername = message.split("set-name ")[1].trim();
+                    const newUsername = message.substring(9)
                     if (newUsername) {
                         username = newUsername; // 更新本地变量
-                        setCookie("username", newUsername, 1); // 更新 cookie
+                        if (username.includes(" ")){
+                        	alert("昵称包含空格，请重新输入！");
+		                    deleteCookie("username"); // 清空 cookie
+		                    location.reload(); // 刷新页面重新输入昵称
+		                    return;
+                        }
+                        setCookie("username", username, 1); // 更新 cookie
                         console.log(`昵称已更新为：${newUsername}`);
+                        ws.send(message);
                     }
                 } else if (message !== "clear") {
                     // 组合用户名和消息内容
@@ -884,10 +930,10 @@
 
             container.appendChild(messageElement);
             messagesDiv.appendChild(container);
-            if (type === 'sent'){
-                messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            }
-            
+
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+
         }
 
 
@@ -906,19 +952,46 @@
                 alert("未检测到文件！");
                 return;
             }
+            
+            let name = file.name.replace(/ /g, "");
+            let file_extensions = name.slice(-3).toLowerCase(); // 转为小写统一判断
+            
+            if (file.name === "image.png") {
+                let time = Date.now();
+                let newName = `${time}.${file_extensions}`;
+                
+                // 创建新的 File 对象
+                file = new File([file], newName, { type: file.type });
+                name = newName;
 
+            }
+            
+
+            
             const formData = new FormData();
             formData.append("file", file);
 
-            fetch("http://im.kndxhz.cn:5000/upload", {
+            fetch("http://im.kndxhz.cn:5000/upload", { // 移除多余空格
                 method: "POST",
                 body: formData,
             })
                 .then(response => response.json())
                 .then(data => {
+                    
+                    if (file_extensions === "jpg" || file_extensions === "png" || file_extensions === "gif") {
+                        
+                        let downloadUrl = `http://im.kndxhz.cn:5000/download/${name}`;
+                        let message = `![img](${downloadUrl})`;
+                        ws.send(message);
+                        renderMessage(`${username}：${message}`, "received", `${username}：${message}`);
+                    } else {
+                        let downloadUrl = `http://im.kndxhz.cn:5000/download/${name}`;
+                        let message = `发送了文件 ([${name}](${downloadUrl}))`;
+                        ws.send(message);
+                        renderMessage(`${username}：${message}`, "received", `${username}：${message}`);
+                    }
+
                     alert(data.message || "文件上传成功！");
-                    //ws.send(`${username} 发送了文件 (${file.name})`);
-                    ws.send(`发送了文件 (${file.name})`);
                     fetchFileList(); // 更新文件列表
                 })
                 .catch(error => {
