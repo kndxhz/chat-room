@@ -173,6 +173,38 @@
       return false;
     });
 
+    // 图片滚轮缩放
+    this.img = this.$container.find('.lb-image');
+    this.label = this.$lightbox.find('.lb-dataContainer');
+    $([this.$overlay[0],this.$lightbox[0]]).bind("mousewheel", function(e){
+        var flag= e.originalEvent.wheelDelta < 0;
+        var imgH = self.img.height();
+        var imgW = self.img.width();
+        var nw = Math.round(20*imgW/imgH);
+        var ctH = self.$outerContainer.height();
+        var ctW = self.$outerContainer.width();
+        var layH = self.$overlay.height()-20;
+        var layW = self.$overlay.width()-20;
+        // 向下
+        if(flag && imgH>20 && imgW>20) {
+            self.img.css('height', imgH - 20);
+            self.img.css('width', imgW - nw);
+            self.$outerContainer.css('height', ctH - 20);
+            self.$outerContainer.css('width', ctW - nw);
+            if(ctW-nw > 240){
+                self.label.css('width', ctW - nw);
+            }
+        } else if(!flag && imgH<layH && imgW<layW) {
+            self.img.css('height', imgH + 20);
+            self.img.css('width', imgW + nw);
+            self.$outerContainer.css('height', ctH + 20);
+            self.$outerContainer.css('width', ctW + nw);
+            self.label.css('width', ctW + nw);
+        }
+        e.stopPropagation();
+        return false;
+    });
+
     /*
       Show context menu for image on right-click
 
