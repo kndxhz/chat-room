@@ -252,7 +252,7 @@ async def broadcast_connection_list(client):
     lines = tem_
     if lines:
         lines = lines[-100:]  # 只发送最后100行历史记录
-    lines.append(f"{SYSTEM_PREFIX}----以上是历史记录----")
+
     await asyncio.gather(*[client.send(line) for line in lines])
 
 
