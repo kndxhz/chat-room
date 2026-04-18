@@ -1053,7 +1053,7 @@
 
         async function fetchOnlineUsers() {
             try {
-                const response = await fetch("/get_online_user");
+                const response = await fetch("http://im.kndxhz.cn:5000/get_online_user");
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
