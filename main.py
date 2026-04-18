@@ -13,7 +13,6 @@ import keyboard
 import pyperclip
 import mimetypes
 import re
-import json
 
 connected_clients = set()
 UPLOAD_FOLDER = "./files"
@@ -25,17 +24,16 @@ BAN_FILE = "./ban.txt"
 LOG_FILE = "./chat-room.log"
 
 
-CLOUDFLARE_API_TOKEN = "CLOUDFLARE_API_TOKEN"
-ZONE_ID = "ZONE_ID"  # 替换为你的 Zone ID
-RECORD_ID = "RECORD_ID"  # 替换为你的 Record ID
-DOMAIN = "DOMAIN"
+CLOUDFLARE_API_TOKEN = "r9Y0zluPLpGFVs786g19oo8CfPyFxSTvlhgJUN7c"
+ZONE_ID = "40dc857bc7c8f78ec2ace5369ff54ae8"  # 替换为你的 Zone ID
+RECORD_ID = "6d9640e6162fbd9bf5b0d54f69642dfd"  # 替换为你的 Record ID
+DOMAIN = "im.kndxhz.cn"
 LAST_ALT_PRESS_TIME = 0
 DOUBLE_CLICK_THRESHOLD = 0.3  # 双击时间阈值（秒）
 
 BING_INFO = ""
 SYSTEM_PREFIX = "[SYSTEM]"
 SYSTEM_ALERT_PREFIX = "[SYSTEM:ALERT]"
-SYSTEM_USERS_PREFIX = "[SYSTEM:USERS]"
 
 app = Flask(__name__)
 CORS(app)  # 允许跨域
@@ -202,6 +200,13 @@ async def send_system_alert(client, message):
     await client.send(f"{SYSTEM_ALERT_PREFIX}{message}")
 
 
+def is_valid_username(name):
+    if not name or not isinstance(name, str):
+        return False
+    pattern = r"^[a-zA-Z0-9_\u4e00-\u9fff]+$"
+    return re.match(pattern, name) is not None
+
+
 def get_online_user_names():
     names = []
     for client in connected_clients:
@@ -209,17 +214,9 @@ def get_online_user_names():
     return sorted(set(names))
 
 
-async def send_online_users(target_client=None):
-    payload = json.dumps(
-        {"users": get_online_user_names()}, ensure_ascii=False, separators=(",", ":")
-    )
-    message = f"{SYSTEM_USERS_PREFIX}{payload}"
-    if target_client is not None:
-        await target_client.send(message)
-        return
-
-    if connected_clients:
-        await asyncio.gather(*[client.send(message) for client in connected_clients])
+@app.route("/get_online_user", methods=["GET"])
+def get_online_user():
+    return jsonify({"users": get_online_user_names()}), 200
 
 
 def on_alt_press(event):
@@ -257,7 +254,6 @@ async def broadcast_connection_list(client):
         lines = lines[-100:]  # 只发送最后100行历史记录
     lines.append(f"{SYSTEM_PREFIX}----以上是历史记录----")
     await asyncio.gather(*[client.send(line) for line in lines])
-    await send_online_users(client)
 
 
 async def broadcast_exit_message(client):
@@ -305,10 +301,23 @@ async def handler(websocket):
                 old_name = getattr(websocket, "name", websocket.remote_address[0])
                 new_name = message[10:]
 
+                # 检查昵称格式是否合法
+                if not is_valid_username(new_name):
+                    log_event(
+                        logging.WARNING,
+                        "昵称格式不合法",
+                        ip=websocket.remote_address[0],
+                        name=new_name,
+                    )
+                    await send_system_alert(
+                        websocket, "昵称只能包含英文、中文、数字和下划线！"
+                    )
+
                 # 检查昵称是否重复
-                with open(CONNECT_FILE, "r", encoding="utf-8") as f:
-                    names = [line.split(" ", 1)[1].strip() for line in f.readlines()]
-                if new_name in names:
+                elif new_name in [
+                    line.split(" ", 1)[1].strip()
+                    for line in open(CONNECT_FILE, "r", encoding="utf-8").readlines()
+                ]:
                     log_event(
                         logging.WARNING,
                         "昵称重复",
@@ -326,16 +335,6 @@ async def handler(websocket):
                     )
                     websocket.name = new_name
                     update_connect_file()
-                    await send_online_users()
-
-                elif " " in new_name:
-                    log_event(
-                        logging.WARNING,
-                        "昵称含空格",
-                        ip=websocket.remote_address[0],
-                        name=new_name,
-                    )
-                    await send_system_alert(websocket, "昵称包含空格，请重新输入！")
 
                 else:
                     update_connect_file()
@@ -356,7 +355,6 @@ async def handler(websocket):
                         ]
                     )
                     await send_system_message(websocket, f"你已成功改名为 {new_name}")
-                    await send_online_users()
 
                 update_connect_file()
             elif message.startswith("change-key"):
@@ -438,7 +436,6 @@ async def handler(websocket):
                     logging.INFO, "列出在线客户端", ip=websocket.remote_address[0]
                 )
                 await send_system_message(websocket, "当前在线的客户端:\n" + content)
-                await send_online_users(websocket)
             elif message == "/clear":
                 log_event(logging.INFO, "清空聊天记录", ip=websocket.remote_address[0])
             else:
@@ -460,7 +457,6 @@ async def handler(websocket):
         # 注销客户端
         connected_clients.remove(websocket)
         update_connect_file()
-        await send_online_users()
         await broadcast_exit_message(websocket)
 
 

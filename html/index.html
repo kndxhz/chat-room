@@ -947,7 +947,6 @@
         let historyReplayDone = false;
         const SYSTEM_PREFIX = "[SYSTEM]";
         const SYSTEM_ALERT_PREFIX = "[SYSTEM:ALERT]";
-        const SYSTEM_USERS_PREFIX = "[SYSTEM:USERS]";
 
         function formatReplyPreview(text, maxLength = 40) {
             const compact = (text || "")
@@ -1044,16 +1043,29 @@
             scheduleSyncMessageBottomSpacing();
         }
 
-        function updateOnlineUsersFromPayload(payloadText) {
+        function isValidUsername(name) {
+            if (!name || typeof name !== "string") {
+                return false;
+            }
+            const validPattern = /^[a-zA-Z0-9_\u4e00-\u9fff]+$/;
+            return validPattern.test(name);
+        }
+
+        async function fetchOnlineUsers() {
             try {
-                const parsed = JSON.parse(payloadText || "{}");
-                if (!Array.isArray(parsed.users)) {
+                const response = await fetch("/get_online_user");
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const data = await response.json();
+                if (!Array.isArray(data.users)) {
+                    onlineUsers = [];
                     return;
                 }
-                onlineUsers = parsed.users.filter((name) => typeof name === "string");
-                renderMentionPicker();
+                onlineUsers = data.users.filter((name) => typeof name === "string");
             } catch (error) {
-                console.warn("在线用户列表解析失败", error);
+                console.warn("在线用户列表获取失败", error);
+                onlineUsers = [];
             }
         }
 
@@ -1077,7 +1089,7 @@
             };
         }
 
-        function renderMentionPicker() {
+        async function renderMentionPicker() {
             const picker = document.getElementById("mentionPicker");
             const state = getMentionState();
             if (!picker || !state) {
@@ -1087,6 +1099,8 @@
                 }
                 return;
             }
+
+            await fetchOnlineUsers();
 
             const keyword = state.keyword.toLowerCase();
             const candidates = onlineUsers
@@ -1460,7 +1474,18 @@
                     location.reload(); // 刷新页面
                     return;
                 }
+                if (!isValidUsername(username)) {
+                    alert("昵称只能包含英文、中文、数字和下划线！");
+                    deleteCookie("username");
+                    location.reload();
+                    return;
+                }
                 setCookie("username", username, 1); // 设置 cookie，时长为 1 天
+            } else if (!isValidUsername(username)) {
+                alert("昵称格式不合法，请重新设置！");
+                deleteCookie("username");
+                location.reload();
+                return;
             }
             connectWebSocket();
             fetchFileList();
@@ -1592,10 +1617,6 @@
                     renderMessage(systemMessage, "system");
                     return;
                 }
-                if (typeof message === "string" && message.startsWith(SYSTEM_USERS_PREFIX)) {
-                    updateOnlineUsersFromPayload(message.slice(SYSTEM_USERS_PREFIX.length));
-                    return;
-                }
                 // 检查是否是 "kick xxx" 消息
                 if (message.includes("：kick ")) {
                     const content = message.split("：kick ")[1]; // 提取 "：kick " 后的内容
@@ -1697,10 +1718,6 @@
                             renderMessage(systemMessage, "system");
                             return;
                         }
-                        if (typeof message === "string" && message.startsWith(SYSTEM_USERS_PREFIX)) {
-                            updateOnlineUsersFromPayload(message.slice(SYSTEM_USERS_PREFIX.length));
-                            return;
-                        }
                         if (historyReplayDone && isMentioningCurrentUser(message)) {
                             renderMentionTip(message);
                         } else if (historyReplayDone && isReplyingCurrentUser(message)) {
@@ -1739,13 +1756,11 @@
                 if (message.startsWith("/set-name ")) {
                     const newUsername = message.substring(10)
                     if (newUsername) {
-                        username = newUsername; // 更新本地变量
-                        if (username.includes(" ")) {
-                            alert("昵称包含空格，请重新输入！");
-                            deleteCookie("username"); // 清空 cookie
-                            location.reload(); // 刷新页面重新输入昵称
+                        if (!isValidUsername(newUsername)) {
+                            alert("昵称只能包含英文、中文、数字和下划线！");
                             return;
                         }
+                        username = newUsername; // 更新本地变量
                         setCookie("username", username, 1); // 更新 cookie
                         console.log(`昵称已更新为：${newUsername}`);
                         ws.send(message);
