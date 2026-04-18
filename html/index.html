@@ -210,7 +210,10 @@
 
         .mention-picker {
             display: none;
-            margin-top: 4px;
+            position: absolute;
+            left: 14px;
+            right: 14px;
+            bottom: calc(100% + 8px);
             max-height: 180px;
             overflow-y: auto;
             border-radius: 10px;
@@ -221,6 +224,7 @@
             gap: 8px;
             flex-wrap: wrap;
             align-content: flex-start;
+            z-index: 5;
         }
 
         .mention-picker.open {
@@ -939,7 +943,7 @@
     <script>
         let ws;
         let username;
-        let history;
+        let lastInputValue = "";
         let shouldAutoFollow = true;
         let unreadCount = 0;
         let replyContext = null;
@@ -1141,7 +1145,7 @@
             const newCaret = (before + mentionText).length;
             messageInput.focus();
             messageInput.setSelectionRange(newCaret, newCaret);
-            autoResize(messageInput);
+            scheduleSyncMessageBottomSpacing();
             if (picker) {
                 picker.classList.remove("open");
                 picker.innerHTML = "";
@@ -1540,8 +1544,9 @@
 
 
                 if (event.key === 'ArrowUp') { // 按下向上箭头键
-                    if (!event.target.value) {
-                        messageInput.value = history;
+                    if (!event.target.value && lastInputValue) {
+                        event.preventDefault();
+                        messageInput.value = lastInputValue;
                     }
 
                 }
@@ -1737,6 +1742,7 @@
             const message = messageInput.value.trim();
 
             if (message) {
+                lastInputValue = messageInput.value;
                 // 保留换行格式（替换为\n）
                 let formattedMessage = message;
 
@@ -1805,7 +1811,6 @@
             message = message.replace("<", "&lt;").replace(">", "&gt;");
             originalMessage = originalMessage.replace("<", "&lt;").replace(">", "&gt;");
             container.className = "message-container";
-            history = originalMessage;
             if (type !== "system" && (message.includes("kick") || message.includes("ban") || message.includes("unban"))) {
                 return
             }
