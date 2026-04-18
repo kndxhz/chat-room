@@ -13,10 +13,8 @@ import keyboard
 import pyperclip
 import mimetypes
 import re
+import json
 
-
-app = Flask(__name__)
-CORS(app)  # 允许跨域
 connected_clients = set()
 UPLOAD_FOLDER = "./files"
 IMAGE_FOLDER = "./html/img"
@@ -24,6 +22,7 @@ CONNECT_FILE = "./connect.txt"
 HISTORY_FILE = "./history.txt"
 KEY_FILE = "./key.txt"
 BAN_FILE = "./ban.txt"
+LOG_FILE = "./chat-room.log"
 
 
 CLOUDFLARE_API_TOKEN = "CLOUDFLARE_API_TOKEN"
@@ -34,6 +33,44 @@ LAST_ALT_PRESS_TIME = 0
 DOUBLE_CLICK_THRESHOLD = 0.3  # 双击时间阈值（秒）
 
 BING_INFO = ""
+SYSTEM_PREFIX = "[SYSTEM]"
+SYSTEM_ALERT_PREFIX = "[SYSTEM:ALERT]"
+SYSTEM_USERS_PREFIX = "[SYSTEM:USERS]"
+
+app = Flask(__name__)
+CORS(app)  # 允许跨域
+logger = logging.getLogger("chat-room")
+if not logger.handlers:
+    logger.setLevel(logging.INFO)
+    log_formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(log_formatter)
+
+    file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+    file_handler.setFormatter(log_formatter)
+
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+    logger.propagate = False
+
+
+def log_event(level, action, **fields):
+    parts = [action]
+    for key, value in fields.items():
+        if value is None or value == "":
+            continue
+        value_text = str(value).replace("\n", "\\n")
+        if len(value_text) > 80:
+            value_text = value_text[:77] + "..."
+        if key == "transition":
+            parts.append(value_text)
+        else:
+            parts.append(f"{key}={value_text}")
+    logger.log(level, " | ".join(parts))
 
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -83,7 +120,9 @@ def download_file(filename):
         if request.headers.get("Range") is None:
             mime_type, _ = mimetypes.guess_type(filename)
             if mime_type and not mime_type.startswith("image/"):
-                print(f"{nickname} 下载了 {filename}")
+                log_event(
+                    logging.INFO, "下载文件", ip=client_ip, user=nickname, file=filename
+                )
 
         return send_file(
             file_path,
@@ -94,7 +133,7 @@ def download_file(filename):
             last_modified=True,
         )
     except Exception as e:
-        print(f"下载出错: {e}")
+        log_event(logging.ERROR, "下载出错", error=e)
         return jsonify({"error": "服务器内部错误"}), 500
 
 
@@ -136,7 +175,7 @@ def download_bing_pic():
         BING_INFO = f"{title}\n{place}\n{copyr}"
 
     except Exception as e:
-        print("必应每日壁纸下载失败:", e)
+        log_event(logging.ERROR, "必应壁纸下载失败", error=e)
 
 
 @app.route("/file_list", methods=["GET"])
@@ -153,6 +192,34 @@ def update_connect_file():
             name = getattr(client, "name", client.remote_address[0])
             ip = client.remote_address[0]
             f.write(f"{ip} {name}\n")
+
+
+async def send_system_message(client, message):
+    await client.send(f"{SYSTEM_PREFIX}{message}")
+
+
+async def send_system_alert(client, message):
+    await client.send(f"{SYSTEM_ALERT_PREFIX}{message}")
+
+
+def get_online_user_names():
+    names = []
+    for client in connected_clients:
+        names.append(getattr(client, "name", client.remote_address[0]))
+    return sorted(set(names))
+
+
+async def send_online_users(target_client=None):
+    payload = json.dumps(
+        {"users": get_online_user_names()}, ensure_ascii=False, separators=(",", ":")
+    )
+    message = f"{SYSTEM_USERS_PREFIX}{payload}"
+    if target_client is not None:
+        await target_client.send(message)
+        return
+
+    if connected_clients:
+        await asyncio.gather(*[client.send(message) for client in connected_clients])
 
 
 def on_alt_press(event):
@@ -177,28 +244,27 @@ async def broadcast_connection_list(client):
     #     await asyncio.gather(
     #         *[c.send(message) for c in connected_clients if c != client]
     #     )
-    print(f"{client.remote_address[0]} 进入了房间")
+    log_event(logging.INFO, "进入房间", ip=client.remote_address[0])
     with open(HISTORY_FILE, "r", encoding="utf-8") as f:
         lines = f.readlines()
     tem_ = []
     for i in lines:
         if "kick" in i:
             continue
-
         tem_.append(i.replace("#换行", "\n"))
     lines = tem_
-    # print(lines)
     if lines:
         lines = lines[-100:]  # 只发送最后100行历史记录
-        lines.append("----以上是历史记录----\n")
-        await asyncio.gather(*[client.send(line) for line in lines])
+    lines.append(f"{SYSTEM_PREFIX}----以上是历史记录----")
+    await asyncio.gather(*[client.send(line) for line in lines])
+    await send_online_users(client)
 
 
 async def broadcast_exit_message(client):
     # name = getattr(client, "name", client.remote_address[0])
     # message = f"{name} 退出了房间"
     # await asyncio.gather(*[c.send(message) for c in connected_clients if c != client])
-    print(f"{client.remote_address[0]} 退出了房间")
+    log_event(logging.INFO, "退出房间", ip=client.remote_address[0])
 
 
 async def close_websocket_by_ip(ip):
@@ -216,8 +282,8 @@ async def handler(websocket):
         # 获取客户端 IP
         ip = websocket.remote_address[0]
         if ip in open(BAN_FILE, "r", encoding="utf-8").read():
-            print(f"{ip} 尝试连接，但被禁止")
-            await websocket.send("你已被封禁")
+            log_event(logging.WARNING, "连接被拒", ip=ip)
+            await send_system_message(websocket, "你已被封禁")
             await websocket.close()
             return
         websocket.name = ip  # 默认名称为 IP 地址
@@ -225,38 +291,63 @@ async def handler(websocket):
         await broadcast_connection_list(websocket)  # 广播连接消息
 
         async for message in websocket:
-            print(f"收到消息: {message} {websocket.remote_address[0]}")
-            if message.startswith("set-name"):
+            log_event(
+                logging.INFO,
+                "接收消息",
+                ip=websocket.remote_address[0],
+                message=message,
+            )
+            if message.startswith("/set-name"):
                 # 获取当前时间
                 current_time = datetime.datetime.now()
                 # 计算时间差
                 time_diff = current_time - connection_time
                 old_name = getattr(websocket, "name", websocket.remote_address[0])
-                new_name = message[9:]
+                new_name = message[10:]
 
                 # 检查昵称是否重复
                 with open(CONNECT_FILE, "r", encoding="utf-8") as f:
                     names = [line.split(" ", 1)[1].strip() for line in f.readlines()]
                 if new_name in names:
-                    print(f"昵称 {new_name} 已被占用")
-                    await websocket.send(f"repeated_nicknames")
+                    log_event(
+                        logging.WARNING,
+                        "昵称重复",
+                        ip=websocket.remote_address[0],
+                        name=new_name,
+                    )
+                    await send_system_alert(websocket, "昵称重复，请重新输入！")
 
                 elif time_diff.total_seconds() < 3:
-                    print(f"{new_name} {websocket.remote_address[0]} 改名差小于3秒")
+                    log_event(
+                        logging.INFO,
+                        "入房改名",
+                        ip=websocket.remote_address[0],
+                        transition=f"{old_name} -> {new_name}",
+                    )
                     websocket.name = new_name
                     update_connect_file()
-
-                    websocket.name = new_name
+                    await send_online_users()
 
                 elif " " in new_name:
-                    print(f"昵称 {new_name} 包含空格")
-                    await websocket.send(f"nickname_space")
+                    log_event(
+                        logging.WARNING,
+                        "昵称含空格",
+                        ip=websocket.remote_address[0],
+                        name=new_name,
+                    )
+                    await send_system_alert(websocket, "昵称包含空格，请重新输入！")
 
                 else:
                     update_connect_file()
                     # Broadcast the name change to other clients
                     message = f"{old_name} 已改名为 {new_name}"
                     websocket.name = new_name
+                    log_event(
+                        logging.INFO,
+                        "用户改名",
+                        ip=websocket.remote_address[0],
+                        transition=f"{old_name} -> {new_name}",
+                    )
                     await asyncio.gather(
                         *[
                             client.send(message)
@@ -264,7 +355,8 @@ async def handler(websocket):
                             if client != websocket
                         ]
                     )
-                    await websocket.send(f"你已成功改名为 {new_name}")
+                    await send_system_message(websocket, f"你已成功改名为 {new_name}")
+                    await send_online_users()
 
                 update_connect_file()
             elif message.startswith("change-key"):
@@ -272,8 +364,8 @@ async def handler(websocket):
                 with open(KEY_FILE, "w", encoding="utf-8") as f:
                     f.write("")
                     f.write(key)
-                print(f"秘钥：{key}")
-                await websocket.send("已更新秘钥")
+                log_event(logging.INFO, "更新秘钥")
+                await send_system_message(websocket, "已更新秘钥")
 
             elif "kick" in message and key not in message:
                 pass
@@ -281,12 +373,12 @@ async def handler(websocket):
                 try:
                     ip = message.split(" ")[1]
                     if ip.count(".") != 3:
-                        await websocket.send("ip格式错误")
+                        await send_system_message(websocket, "ip格式错误")
                         return
-                    print(f"{ip} 被 ban")
+                    log_event(logging.WARNING, "封禁IP", ip=ip)
                     with open(BAN_FILE, "a", encoding="utf-8") as f:
                         f.write(ip + "\n")
-                    await websocket.send(f"{ip} 被 ban")
+                    await send_system_message(websocket, f"{ip} 被 ban")
                     await close_websocket_by_ip(ip)
                     await asyncio.gather(
                         *[
@@ -296,55 +388,59 @@ async def handler(websocket):
                         ]
                     )
                 except Exception as e:
-                    print(f"ban 失败: {e}")
-                    await websocket.send(f"ban 失败: {e}")
+                    log_event(logging.ERROR, "封禁失败", error=e)
+                    await send_system_message(websocket, f"ban 失败: {e}")
             elif message.startswith("unban") and key in message:
                 try:
                     ip = message.split(" ")[1]
-                    print(f"{ip} 被unban")
+                    log_event(logging.INFO, "解除封禁", ip=ip)
                     with open(BAN_FILE, "w+", encoding="utf-8") as f:
                         lines = f.readlines()
                         lines = [line for line in lines if line.strip() != ip]
                         f.writelines(lines)
 
                 except Exception as e:
-                    print(f"unban 失败: {e}")
-                    await websocket.send(f"unban 失败: {e}")
+                    log_event(logging.ERROR, "解除封禁失败", error=e)
+                    await send_system_message(websocket, f"unban 失败: {e}")
 
-            elif message == "del-all-files":
+            elif message == "/del-all-files":
                 try:
                     for filename in os.listdir(UPLOAD_FOLDER):
                         file_path = os.path.join(UPLOAD_FOLDER, filename)
                         os.remove(file_path)
-                        print("已删除所有文件")
+                    log_event(logging.INFO, "删除所有文件")
                 except Exception as e:
-                    print(f"删除所有文件失败: {e}")
-                    await websocket.send(f"删除所有文件失败: {e}")
-                await websocket.send("已删除所有文件")
-            elif message == "update-dns":
+                    log_event(logging.ERROR, "删除所有文件失败", error=e)
+                    await send_system_message(websocket, f"删除所有文件失败: {e}")
+                await send_system_message(websocket, "已删除所有文件")
+            elif message == "/update-dns":
                 update_cloudflare_dns(get_host_ip())
-                await websocket.send("已更新 DNS 记录")
-            elif message.startswith("del"):
+                await send_system_message(websocket, "已更新 DNS 记录")
+            elif message.startswith("/del "):
                 try:
                     filename = message.split(" ", 1)[1].strip()
                     file_path = os.path.join(UPLOAD_FOLDER, filename)
                     if os.path.exists(file_path):
                         os.remove(file_path)
-                        print(f"已删除文件: {filename}")
+                        log_event(logging.INFO, "删除文件", file=filename)
                     else:
-                        print(f"文件不存在: {filename}")
-                        await websocket.send(f"文件不存在: {filename}")
+                        log_event(logging.WARNING, "文件不存在", file=filename)
+                        await send_system_message(websocket, f"文件不存在: {filename}")
                 except Exception as e:
-                    print(f"删除文件失败: {e}")
-                    await websocket.send(f"删除文件失败: {e}")
+                    log_event(logging.ERROR, "删除文件失败", error=e)
+                    await send_system_message(websocket, f"删除文件失败: {e}")
 
-            elif message == "list":
+            elif message == "/list":
                 update_connect_file()
                 with open(CONNECT_FILE, "r", encoding="utf-8") as f:
                     content = f.read()
-                await websocket.send("当前在线的客户端:\n" + content)
-            elif message == "clear":
-                print(f"{websocket.remote_address[0]} 清空了聊天记录")
+                log_event(
+                    logging.INFO, "列出在线客户端", ip=websocket.remote_address[0]
+                )
+                await send_system_message(websocket, "当前在线的客户端:\n" + content)
+                await send_online_users(websocket)
+            elif message == "/clear":
+                log_event(logging.INFO, "清空聊天记录", ip=websocket.remote_address[0])
             else:
                 name = getattr(websocket, "name", websocket.remote_address[0])
                 formatted_message = f"{name}：{message}"
@@ -364,12 +460,13 @@ async def handler(websocket):
         # 注销客户端
         connected_clients.remove(websocket)
         update_connect_file()
+        await send_online_users()
         await broadcast_exit_message(websocket)
 
 
 async def run_websocket_server():
     async with websockets.serve(handler, "0.0.0.0", 8765):
-        print("WebSocket 服务器已启动，地址: ws://0.0.0.0:8765")
+        log_event(logging.INFO, "WebSocket 启动", url="ws://0.0.0.0:8765")
         await asyncio.Future()  # 保持运行
 
 
@@ -391,11 +488,16 @@ def update_cloudflare_dns(ip):
     try:
         response = requests.put(url, json=data, headers=headers)
         if response.status_code == 200:
-            print(f"成功更新 DNS 记录: {DOMAIN} -> {ip}")
+            log_event(logging.INFO, "更新 DNS 成功", domain=DOMAIN, ip=ip)
         else:
-            print(f"更新 DNS 记录失败: {response.status_code}, {response.text}")
+            log_event(
+                logging.ERROR,
+                "更新 DNS 失败",
+                code=response.status_code,
+                body=response.text,
+            )
     except requests.exceptions.RequestException as e:
-        print(f"更新 DNS 记录失败: {e}")
+        log_event(logging.ERROR, "更新 DNS 失败", error=e)
 
 
 def get_host_ip():
@@ -415,17 +517,17 @@ def run_flask_app():
 if __name__ == "__main__":
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
     app.logger.setLevel(logging.WARNING)
-    files_to_clear = [CONNECT_FILE, HISTORY_FILE, KEY_FILE]
+    files_to_clear = [CONNECT_FILE, HISTORY_FILE, KEY_FILE, LOG_FILE]
     for file_path in files_to_clear:
         with open(file_path, "w", encoding="utf-8") as f:
             f.write("")
     key = str(random.randint(10000, 99999))
     with open(KEY_FILE, "w", encoding="utf-8") as f:
         f.write(key)
-    print(f"秘钥：{key}")
+    log_event(logging.INFO, "生成秘钥", key=key)
     update_cloudflare_dns(get_host_ip())
     download_bing_pic()
-    print("今日必应图片信息：", BING_INFO.replace("\n", "|"))
+    log_event(logging.INFO, "必应图片信息", info=BING_INFO.replace("\n", "|"))
     keyboard.hook(on_alt_press)
     loop = asyncio.get_event_loop()
     # 同时运行 Flask 和 WebSocket 服务器
