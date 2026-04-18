@@ -20,12 +20,12 @@
             background-size: cover;
         }
 
-        img{
+        img {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
-        
+
         .lightbox {
             width: 80%;
             height: 80%;
@@ -163,11 +163,14 @@
             background: rgba(255, 255, 255, 0.5);
             border-radius: 10px;
             word-wrap: break-word;
+            /* 自动换行 */
+            word-break: break-word;
+            /* 支持长单词换行 */
+            overflow-wrap: break-word;
+            /* 兼容性 */
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
             font-size: 1.1em;
-            max-width: 100%
-            /* 增大字体 */
-            ;
+            max-width: 100%;
         }
 
         .message-content.sent {
@@ -193,6 +196,11 @@
             padding: 1em;
             border-radius: 5px;
             overflow-x: auto;
+            white-space: pre-wrap;
+            white-space: -moz-pre-wrap;
+            white-space: -pre-wrap;
+            white-space: -o-pre-wrap;
+            word-wrap: break-word;
         }
 
         .message-content.sent {
@@ -224,7 +232,7 @@
         .copy-button:hover {
             opacity: 1;
         }
-        
+
 
         .message-content code {
             background: rgba(0, 0, 0, 0.1);
@@ -325,7 +333,7 @@
                 font-size: 1em;
             }
 
-            
+
 
             .file-list {
                 width: 100%;
@@ -536,56 +544,45 @@
             document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/`;
         }
         function setBackgroundImage() {
-            const imageUrl = 'https://t.alcy.cc/fj   ';
             const fallbackImageUrl = './img/nahida.jpg';
-            const timeoutDuration = 5000;
+            const primaryImageUrl = './img/bing.jpg';
+            const infoUrl = 'http://im.kndxhz.cn:5000/get_bing_info';
 
-            // 使用 fetch + no-cors 模式绕过 CORS 限制
-            const controller = new AbortController();
-            const { signal } = controller;
-
-            const timeout = setTimeout(() => {
-                console.log('网络检测超时，切换到备用图片');
-                controller.abort();
-                applyFallbackStyle();
-            }, timeoutDuration);
-
-            fetch('http://wifi.vivo.com.cn/generate_204', {
-                method: 'HEAD',         // 轻量级 HEAD 请求
-                mode: 'no-cors',        // 绕过 CORS 限制
-                signal: controller.signal
-            })
-                .then(() => {
-                    // 只要请求能到达服务器即视为成功
-                    clearTimeout(timeout);
-                    applyPrimaryStyle();
-                })
-                .catch(() => {
-                    // 处理网络错误/超时/主动终止
-                    clearTimeout(timeout);
-                    console.log('网络检测失败，切换到备用图片');
-                    applyFallbackStyle();
-                });
-
-            // 提取公共样式设置函数
-            function applyPrimaryStyle() {
-                document.body.style.backgroundImage = `url(${imageUrl})`;
-                applyCommonStyle();
+            let bg = document.getElementById('bg-holder');
+            if (!bg) {
+                bg = document.createElement('div');
+                bg.id = 'bg-holder';
+                bg.style.cssText = `
+                    position:fixed;
+                    inset:0;
+                    z-index:0;
+                    /* pointer-events:none;  ← 先删掉 */
+                    background-size:cover;
+                    background-repeat:no-repeat;
+                    background-position:center;
+                    background-attachment:fixed;
+                `;
+                document.body.prepend(bg);
             }
 
-            function applyFallbackStyle() {
-                document.body.style.backgroundImage = `url(${fallbackImageUrl})`;
-                applyCommonStyle();
-            }
+            const img = new Image();
+            img.src = primaryImageUrl;
 
-            function applyCommonStyle() {
-                document.body.style.backgroundSize = 'cover';
-                document.body.style.backgroundRepeat = 'no-repeat';
-                document.body.style.backgroundPosition = 'center center';
-                document.body.style.backgroundAttachment = 'fixed';
-            }
+            img.onload = () => {
+                bg.style.backgroundImage = `url(${primaryImageUrl})`;
+                bg.style.backgroundSize = 'cover';
+                fetch(infoUrl)
+                    .then(r => r.json())
+                    .then(d => { bg.title = d.info || ''; })
+                    .catch(() => { bg.title = ''; });
+            };
+
+            img.onerror = () => {
+                bg.style.backgroundImage = `url(${fallbackImageUrl})`;
+                bg.style.backgroundSize = '100% 100%';
+                bg.title = '这是出错情况下的备用图片\n请联系管理员并提供F12控制台报错';               // 备用图无信息
+            };
         }
-
         // 页面加载时要求用户输入名称
         window.onload = () => {
             console.log("%c    __             __     __                           \n   / /______  ____/ /  __/ /_  ____                    \n  / //_/ __ \\/ __  / |/_/ __ \\/_  /                    \n / ,< / / / / /_/ />  </ / / / / /_                    \n/_/|_/_/_/_/\\__,_/_/|_/_/ /_/ /___/                    \n  _____/ /_  ____ _/ /_      _________  ____  ____ ___ \n / ___/ __ \\/ __ `/ __/_____/ ___/ __ \\/ __ \\/ __ `__ \\\n/ /__/ / / / /_/ / /_/_____/ /  / /_/ / /_/ / / / / / /\n\\___/_/ /_/\\__,_/\\__/     /_/   \\____/\\____/_/ /_/ /_/ \n                                                       \n%cgithub.com/kndxhz/chat-room\n切勿直接扒源码!前端只是个静态页面!", 'color: green', 'color: red; background: yellow');
@@ -647,13 +644,13 @@
                 event.preventDefault();
 
                 document.body.style.border = "2px dashed #007bff";
-            
+
             });
 
             document.addEventListener("dragleave", (event) => {
 
                 document.body.style.border = "none";
-            
+
             });
 
             document.addEventListener("drop", (event) => {
@@ -677,7 +674,7 @@
                         uploadDroppedFile(file);
                     }
                 }
-                
+
             });
         };
 
@@ -705,8 +702,8 @@
                     location.reload(); // 刷新页面重新输入昵称
                     return;
                 }
-                
-                
+
+
                 // 检查是否是 "kick xxx" 消息
                 if (message.includes("：kick ")) {
                     const content = message.split("：kick ")[1]; // 提取 "：kick " 后的内容
@@ -726,7 +723,7 @@
                     }
                     return;
                 }
-                
+
 
                 // // 检查是否是 "ban xxx" 消息
                 // if (message.includes("：ban ")) {
@@ -741,6 +738,7 @@
                 // 渲染普通消息
                 renderMessage(message, "received");
             };
+
 
             function sendNotification(message) {
                 if (Notification.permission === "granted") {
@@ -808,7 +806,9 @@
                     formattedMessage = message;
                 } else {
                     // 检查是否是代码格式（以4个空格开头或包含特定关键字）
-                    if (/^ {4}|(\n {4})/m.test(message) || (/(\bif\b|\bfor\b|\bwhile\b|\bdef\b|\bclass\b|\breturn\b|\bdef\b|\bprint\b)/.test(message))) {
+                    let check_message = message.toLowerCase();
+                    let keywords = ["if", "for", "while", "def", "class", "return", "print", "import", "sqlite3", "tkinter", "select"];
+                    if (/^ {4}|(\n {4})/m.test(check_message) || keywords.some(keyword => check_message.includes(keyword))) {
                         formattedMessage = "```\n" + message + "\n```";
                     }
                 }
@@ -818,11 +818,11 @@
                     const newUsername = message.substring(9)
                     if (newUsername) {
                         username = newUsername; // 更新本地变量
-                        if (username.includes(" ")){
-                        	alert("昵称包含空格，请重新输入！");
-		                    deleteCookie("username"); // 清空 cookie
-		                    location.reload(); // 刷新页面重新输入昵称
-		                    return;
+                        if (username.includes(" ")) {
+                            alert("昵称包含空格，请重新输入！");
+                            deleteCookie("username"); // 清空 cookie
+                            location.reload(); // 刷新页面重新输入昵称
+                            return;
                         }
                         setCookie("username", username, 1); // 更新 cookie
                         console.log(`昵称已更新为：${newUsername}`);
@@ -847,6 +847,8 @@
                 const chatMessages = document.getElementById("messages");
                 chatMessages.innerHTML = "";
             }
+            const messagesDiv = document.getElementById("messages");
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
         function renderMessage(message, type, originalMessage = "") {
@@ -952,43 +954,43 @@
                 alert("未检测到文件！");
                 return;
             }
-            
+
             let name = file.name.replace(/ /g, "");
             let file_extensions = name.slice(-3).toLowerCase(); // 转为小写统一判断
-            
+
             if (file.name === "image.png") {
                 let time = Date.now();
                 let newName = `${time}.${file_extensions}`;
-                
+
                 // 创建新的 File 对象
                 file = new File([file], newName, { type: file.type });
                 name = newName;
 
             }
-            
 
-            
+
+
             const formData = new FormData();
             formData.append("file", file);
 
-            fetch("http://im.kndxhz.cn:5000/upload", { // 移除多余空格
+            fetch(`http://im.kndxhz.cn:5000/upload?is_img=${file_extensions === 'jpg' || file_extensions === 'png' || file_extensions === 'gif' ? 1 : 0}`, {
                 method: "POST",
                 body: formData,
             })
                 .then(response => response.json())
                 .then(data => {
-                    
+
                     if (file_extensions === "jpg" || file_extensions === "png" || file_extensions === "gif") {
-                        
-                        let downloadUrl = `http://im.kndxhz.cn:5000/download/${name}`;
+
+                        let downloadUrl = `http://im.kndxhz.cn/img/${name}`;
                         let message = `![img](${downloadUrl})`;
                         ws.send(message);
-                        renderMessage(`${username}：${message}`, "received", `${username}：${message}`);
+                        renderMessage(`${username}：${message}`, "sent", `${username}：${message}`);
                     } else {
                         let downloadUrl = `http://im.kndxhz.cn:5000/download/${name}`;
                         let message = `发送了文件 ([${name}](${downloadUrl}))`;
                         ws.send(message);
-                        renderMessage(`${username}：${message}`, "received", `${username}：${message}`);
+                        renderMessage(`${username}：${message}`, "sent", `${username}：${message}`);
                     }
 
                     alert(data.message || "文件上传成功！");

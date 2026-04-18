@@ -2,7 +2,7 @@ import asyncio
 import websockets
 import socket
 import requests
-from flask import Flask, request, send_from_directory, jsonify
+from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 import os
 import datetime
@@ -11,26 +11,33 @@ import time
 import logging
 import keyboard
 import pyperclip
+import mimetypes
+import re
+
 
 app = Flask(__name__)
 CORS(app)  # 允许跨域
 connected_clients = set()
 UPLOAD_FOLDER = "./files"
+IMAGE_FOLDER = "./html/img"
 CONNECT_FILE = "./connect.txt"
 HISTORY_FILE = "./history.txt"
 KEY_FILE = "./key.txt"
 BAN_FILE = "./ban.txt"
 
 
-CLOUDFLARE_API_TOKEN = ""
-ZONE_ID = ""  # 替换为你的 Zone ID
-RECORD_ID = ""  # 替换为你的 Record ID
-DOMAIN = ""
+CLOUDFLARE_API_TOKEN = "CLOUDFLARE_API_TOKEN"
+ZONE_ID = "ZONE_ID"  # 替换为你的 Zone ID
+RECORD_ID = "RECORD_ID"  # 替换为你的 Record ID
+DOMAIN = "DOMAIN"
 LAST_ALT_PRESS_TIME = 0
 DOUBLE_CLICK_THRESHOLD = 0.3  # 双击时间阈值（秒）
 
+BING_INFO = ""
+
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(IMAGE_FOLDER, exist_ok=True)
 
 
 @app.route("/upload", methods=["POST"])
@@ -42,7 +49,10 @@ def upload_file():
     if file.filename == "":
         return jsonify({"error": "文件名为空"}), 400
 
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    # 根据参数决定保存目录
+    is_img = request.args.get("is_img") == "1"
+    folder = IMAGE_FOLDER if is_img else UPLOAD_FOLDER
+    file_path = os.path.join(folder, file.filename)
     file.save(file_path)
     return jsonify({"message": f"文件 {file.filename} 上传成功"}), 200
 
@@ -51,20 +61,82 @@ def upload_file():
 def download_file(filename):
     try:
         client_ip = request.remote_addr
-        with open(CONNECT_FILE, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-            nickname = next(
-                (
-                    line.split(" ", 1)[1].strip()
-                    for line in lines
-                    if line.startswith(client_ip)
-                ),
-                client_ip,
-            )
-        print(f"{nickname} 下载了 {filename}")
-        return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
-    except FileNotFoundError:
-        return jsonify({"error": "文件未找到"}), 404
+
+        # 读取昵称
+        nickname = client_ip
+        try:
+            with open(CONNECT_FILE, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith(client_ip):
+                        parts = line.split(" ", 1)
+                        if len(parts) == 2:
+                            nickname = parts[1].strip()
+                        break
+        except FileNotFoundError:
+            pass  # 文件不存在就用 IP
+
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        if not os.path.isfile(file_path):
+            return jsonify({"error": "文件未找到"}), 404
+
+        # 只在首次完整请求时打印（非 Range 请求）
+        if request.headers.get("Range") is None:
+            mime_type, _ = mimetypes.guess_type(filename)
+            if mime_type and not mime_type.startswith("image/"):
+                print(f"{nickname} 下载了 {filename}")
+
+        return send_file(
+            file_path,
+            as_attachment=True,
+            conditional=True,  # 支持断点续传
+            download_name=filename,
+            max_age=0,
+            last_modified=True,
+        )
+    except Exception as e:
+        print(f"下载出错: {e}")
+        return jsonify({"error": "服务器内部错误"}), 500
+
+
+@app.route("/get_bing_info", methods=["GET"])
+def get_bing_info():
+    global BING_INFO
+    return jsonify({"info": BING_INFO}), 200
+
+
+def download_bing_pic():
+    try:
+        response = requests.get(
+            "https://cn.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=zh-CN"
+        )
+        if response.status_code == 200:
+            data = response.json()
+        url = "https://cn.bing.com/" + data["images"][0]["url"]
+        response = requests.get(url)
+
+        with open("./html/img/bing.jpg", "wb") as f:
+            f.write(response.content)
+
+        title = data["images"][0]["title"]
+        localtion = data["images"][0]["copyright"]
+        pat = re.compile(
+            r"(?P<place>[^()]+)"  # 非括号字符：地点描述
+            r"\s*"  # 可选空白
+            r"\("  # 左括号
+            r"(?P<copyright>[^)]+)"  # 非右括号字符：版权信息
+            r"\)"  # 右括号
+        )
+
+        m = pat.search(localtion)
+        if m:
+            place = m.group("place").strip()  # 伊斯特本码头, 东萨塞克斯郡, 英格兰
+            copyr = m.group("copyright").strip()  # © Tolga_TEZCAN/Getty Images
+
+        global BING_INFO
+        BING_INFO = f"{title}\n{place}\n{copyr}"
+
+    except Exception as e:
+        print("必应每日壁纸下载失败:", e)
 
 
 @app.route("/file_list", methods=["GET"])
@@ -99,7 +171,6 @@ def on_alt_press(event):
 
 
 async def broadcast_connection_list(client):
-
     # for client in connected_clients:
     #     name = getattr(client, "name", client.remote_address[0])
     #     message = f"{name} 进入了房间"
@@ -124,7 +195,6 @@ async def broadcast_connection_list(client):
 
 
 async def broadcast_exit_message(client):
-
     # name = getattr(client, "name", client.remote_address[0])
     # message = f"{name} 退出了房间"
     # await asyncio.gather(*[c.send(message) for c in connected_clients if c != client])
@@ -279,7 +349,6 @@ async def handler(websocket):
                 name = getattr(websocket, "name", websocket.remote_address[0])
                 formatted_message = f"{name}：{message}"
                 with open(HISTORY_FILE, "a", encoding="utf-8") as f:
-
                     f.write(formatted_message.replace("\n", "#换行") + "\n")
                 # 将消息广播给所有连接的客户端
                 await asyncio.gather(
@@ -355,6 +424,8 @@ if __name__ == "__main__":
         f.write(key)
     print(f"秘钥：{key}")
     update_cloudflare_dns(get_host_ip())
+    download_bing_pic()
+    print("今日必应图片信息：", BING_INFO.replace("\n", "|"))
     keyboard.hook(on_alt_press)
     loop = asyncio.get_event_loop()
     # 同时运行 Flask 和 WebSocket 服务器
