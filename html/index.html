@@ -210,33 +210,41 @@
 
         .mention-picker {
             display: none;
-            margin-top: 2px;
-            max-height: 160px;
+            margin-top: 4px;
+            max-height: 180px;
             overflow-y: auto;
             border-radius: 10px;
             border: 1px solid rgba(255, 255, 255, 0.35);
             background: rgba(255, 255, 255, 0.82);
             box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+            padding: 8px;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-content: flex-start;
         }
 
         .mention-picker.open {
-            display: block;
+            display: flex;
         }
 
         .mention-option {
-            display: block;
-            width: 100%;
-            border: none;
-            background: transparent;
+            display: inline-flex;
+            align-items: center;
+            border: 1px solid rgba(0, 123, 255, 0.22);
+            background: rgba(0, 123, 255, 0.08);
+            border-radius: 999px;
             text-align: left;
-            padding: 8px 10px;
-            font-size: 0.92em;
+            padding: 6px 10px;
+            font-size: 0.9em;
             color: #0f172a;
             cursor: pointer;
+            max-width: 100%;
+            white-space: nowrap;
         }
 
         .mention-option:hover {
-            background: rgba(0, 123, 255, 0.12);
+            background: rgba(0, 123, 255, 0.18);
+            border-color: rgba(0, 123, 255, 0.38);
         }
 
         .file-list {
@@ -936,7 +944,6 @@
         let unreadCount = 0;
         let replyContext = null;
         let onlineUsers = [];
-        let mentionAlertTimer = null;
         let historyReplayDone = false;
         const SYSTEM_PREFIX = "[SYSTEM]";
         const SYSTEM_ALERT_PREFIX = "[SYSTEM:ALERT]";
@@ -997,12 +1004,6 @@
             }
             mentionAlertText.textContent = `${sender}@了你`;
             mentionAlertBar.classList.add("open");
-            if (mentionAlertTimer) {
-                clearTimeout(mentionAlertTimer);
-            }
-            mentionAlertTimer = setTimeout(() => {
-                hideMentionAlert();
-            }, 6000);
             scheduleSyncMessageBottomSpacing();
         }
 
@@ -1032,12 +1033,6 @@
             }
             mentionAlertText.textContent = `${sender}回复了你`;
             mentionAlertBar.classList.add("open");
-            if (mentionAlertTimer) {
-                clearTimeout(mentionAlertTimer);
-            }
-            mentionAlertTimer = setTimeout(() => {
-                hideMentionAlert();
-            }, 6000);
             scheduleSyncMessageBottomSpacing();
         }
 
@@ -1045,10 +1040,6 @@
             const mentionAlertBar = document.getElementById("mentionAlertBar");
             if (mentionAlertBar) {
                 mentionAlertBar.classList.remove("open");
-            }
-            if (mentionAlertTimer) {
-                clearTimeout(mentionAlertTimer);
-                mentionAlertTimer = null;
             }
             scheduleSyncMessageBottomSpacing();
         }
