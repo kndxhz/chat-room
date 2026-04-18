@@ -24,9 +24,9 @@ BAN_FILE = "./ban.txt"
 LOG_FILE = "./chat-room.log"
 
 
-CLOUDFLARE_API_TOKEN = "r9Y0zluPLpGFVs786g19oo8CfPyFxSTvlhgJUN7c"
-ZONE_ID = "40dc857bc7c8f78ec2ace5369ff54ae8"  # 替换为你的 Zone ID
-RECORD_ID = "6d9640e6162fbd9bf5b0d54f69642dfd"  # 替换为你的 Record ID
+CLOUDFLARE_API_TOKEN = "CLOUDFLARE_API_TOKEN"
+ZONE_ID = "ZONE_ID"  # 替换为你的 Zone ID
+RECORD_ID = "RECORD_ID"  # 替换为你的 Record ID
 DOMAIN = "im.kndxhz.cn"
 LAST_ALT_PRESS_TIME = 0
 DOUBLE_CLICK_THRESHOLD = 0.3  # 双击时间阈值（秒）
