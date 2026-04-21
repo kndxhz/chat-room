@@ -13,6 +13,8 @@ import keyboard
 import pyperclip
 import mimetypes
 import re
+import sqlite3
+import threading
 
 connected_clients = set()
 UPLOAD_FOLDER = "./files"
@@ -22,6 +24,7 @@ HISTORY_FILE = "./history.txt"
 KEY_FILE = "./key.txt"
 BAN_FILE = "./ban.txt"
 LOG_FILE = "./chat-room.log"
+DB_FILE = "./chat.db"
 
 
 CLOUDFLARE_API_TOKEN = "CLOUDFLARE_API_TOKEN"
@@ -38,6 +41,7 @@ SYSTEM_ALERT_PREFIX = "[SYSTEM:ALERT]"
 app = Flask(__name__)
 CORS(app)  # 允许跨域
 logger = logging.getLogger("chat-room")
+db_lock = threading.Lock()
 if not logger.handlers:
     logger.setLevel(logging.INFO)
     log_formatter = logging.Formatter(
@@ -75,6 +79,190 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(IMAGE_FOLDER, exist_ok=True)
 
 
+def init_db():
+    with db_lock:
+        conn = sqlite3.connect(DB_FILE)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='connections'"
+            )
+            has_connections = cursor.fetchone() is not None
+            if has_connections:
+                cursor.execute("PRAGMA table_info(connections)")
+                columns = [row[1] for row in cursor.fetchall()]
+                # 旧结构是 ip 主键，不支持同 IP 多连接；检测到则迁移重建
+                if "session_id" not in columns:
+                    cursor.execute("DROP TABLE IF EXISTS connections")
+
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS connections (
+                    session_id TEXT PRIMARY KEY,
+                    ip TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    msg_id TEXT UNIQUE NOT NULL,
+                    sender TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    raw_message TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def sync_connections_to_db():
+    now_text = datetime.datetime.now().isoformat(timespec="seconds")
+    rows = []
+    for client in connected_clients:
+        ip = client.remote_address[0]
+        port = client.remote_address[1]
+        session_id = f"{ip}:{port}"
+        name = getattr(client, "name", ip)
+        rows.append((session_id, ip, name, now_text))
+
+    with db_lock:
+        conn = sqlite3.connect(DB_FILE)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM connections")
+            if rows:
+                cursor.executemany(
+                    "INSERT INTO connections(session_id, ip, name, updated_at) VALUES (?, ?, ?, ?)",
+                    rows,
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def get_nickname_by_ip(ip):
+    with db_lock:
+        conn = sqlite3.connect(DB_FILE)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT name FROM connections WHERE ip = ? ORDER BY updated_at DESC LIMIT 1",
+                (ip,),
+            )
+            row = cursor.fetchone()
+            if row and row[0]:
+                return row[0]
+        finally:
+            conn.close()
+    return ip
+
+
+def get_connection_rows():
+    with db_lock:
+        conn = sqlite3.connect(DB_FILE)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT ip, name FROM connections ORDER BY updated_at DESC, name ASC"
+            )
+            return cursor.fetchall()
+        finally:
+            conn.close()
+
+
+def generate_message_id():
+    return datetime.datetime.now().strftime("%Y%m%d%H%M%S%f") + str(
+        random.randint(1000, 9999)
+    )
+
+
+def save_message(sender, content):
+    msg_id = generate_message_id()
+    raw_message = f"{sender}：[[msg:{msg_id}]]\n{content}"
+    created_at = datetime.datetime.now().isoformat(timespec="seconds")
+    with db_lock:
+        conn = sqlite3.connect(DB_FILE)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO messages(msg_id, sender, content, raw_message, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (msg_id, sender, content, raw_message, created_at),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    return msg_id, raw_message
+
+
+def get_recent_raw_messages(limit=100):
+    with db_lock:
+        conn = sqlite3.connect(DB_FILE)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT raw_message FROM messages ORDER BY id DESC LIMIT ?", (limit,)
+            )
+            rows = cursor.fetchall()
+        finally:
+            conn.close()
+    messages = [row[0] for row in rows][::-1]
+    return [m for m in messages if "kick" not in m]
+
+
+def get_message_by_msg_id(msg_id):
+    with db_lock:
+        conn = sqlite3.connect(DB_FILE)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT msg_id, raw_message, sender, created_at FROM messages WHERE msg_id = ?",
+                (msg_id,),
+            )
+            row = cursor.fetchone()
+        finally:
+            conn.close()
+    if not row:
+        return None
+    return {
+        "msg_id": row[0],
+        "message": row[1],
+        "sender": row[2],
+        "created_at": row[3],
+    }
+
+
+def clear_history_messages():
+    with db_lock:
+        conn = sqlite3.connect(DB_FILE)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM messages")
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def clear_connections_table():
+    with db_lock:
+        conn = sqlite3.connect(DB_FILE)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM connections")
+            conn.commit()
+        finally:
+            conn.close()
+
+
 @app.route("/upload", methods=["POST"])
 def upload_file():
     if "file" not in request.files:
@@ -98,17 +286,7 @@ def download_file(filename):
         client_ip = request.remote_addr
 
         # 读取昵称
-        nickname = client_ip
-        try:
-            with open(CONNECT_FILE, "r", encoding="utf-8") as f:
-                for line in f:
-                    if line.startswith(client_ip):
-                        parts = line.split(" ", 1)
-                        if len(parts) == 2:
-                            nickname = parts[1].strip()
-                        break
-        except FileNotFoundError:
-            pass  # 文件不存在就用 IP
+        nickname = get_nickname_by_ip(client_ip)
 
         file_path = os.path.join(UPLOAD_FOLDER, filename)
         if not os.path.isfile(file_path):
@@ -183,13 +361,17 @@ def file_list():
     return jsonify(files), 200
 
 
+@app.route("/get_message_by_id/<msg_id>", methods=["GET"])
+def get_message_by_id(msg_id):
+    data = get_message_by_msg_id(msg_id)
+    if not data:
+        return jsonify({"found": False}), 404
+    return jsonify({"found": True, **data}), 200
+
+
 def update_connect_file():
-    """更新 connect.txt 文件，记录所有连接的客户端信息"""
-    with open(CONNECT_FILE, "w", encoding="utf-8") as f:
-        for client in connected_clients:
-            name = getattr(client, "name", client.remote_address[0])
-            ip = client.remote_address[0]
-            f.write(f"{ip} {name}\n")
+    """同步在线连接到数据库"""
+    sync_connections_to_db()
 
 
 async def send_system_message(client, message):
@@ -242,14 +424,7 @@ async def broadcast_connection_list(client):
     #         *[c.send(message) for c in connected_clients if c != client]
     #     )
     log_event(logging.INFO, "进入房间", ip=client.remote_address[0])
-    with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-    tem_ = []
-    for i in lines:
-        if "kick" in i:
-            continue
-        tem_.append(i.replace("#换行", "\n"))
-    lines = tem_
+    lines = get_recent_raw_messages(100)
     if lines:
         lines = lines[-100:]  # 只发送最后100行历史记录
     lines.append(SYSTEM_PREFIX + "----以上是历史记录----")
@@ -314,10 +489,7 @@ async def handler(websocket):
                     )
 
                 # 检查昵称是否重复
-                elif new_name in [
-                    line.split(" ", 1)[1].strip()
-                    for line in open(CONNECT_FILE, "r", encoding="utf-8").readlines()
-                ]:
+                elif new_name != old_name and new_name in get_online_user_names():
                     log_event(
                         logging.WARNING,
                         "昵称重复",
@@ -430,19 +602,18 @@ async def handler(websocket):
 
             elif message == "/list":
                 update_connect_file()
-                with open(CONNECT_FILE, "r", encoding="utf-8") as f:
-                    content = f.read()
+                rows = get_connection_rows()
+                content = "\n".join([f"{ip} {name}" for ip, name in rows])
                 log_event(
                     logging.INFO, "列出在线客户端", ip=websocket.remote_address[0]
                 )
                 await send_system_message(websocket, "当前在线的客户端:\n" + content)
             elif message == "/clear":
                 log_event(logging.INFO, "清空聊天记录", ip=websocket.remote_address[0])
+                clear_history_messages()
             else:
                 name = getattr(websocket, "name", websocket.remote_address[0])
-                formatted_message = f"{name}：{message}"
-                with open(HISTORY_FILE, "a", encoding="utf-8") as f:
-                    f.write(formatted_message.replace("\n", "#换行") + "\n")
+                _, formatted_message = save_message(name, message)
                 # 将消息广播给所有连接的客户端
                 await asyncio.gather(
                     *[
@@ -513,7 +684,11 @@ def run_flask_app():
 if __name__ == "__main__":
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
     app.logger.setLevel(logging.WARNING)
-    files_to_clear = [CONNECT_FILE, HISTORY_FILE, KEY_FILE, LOG_FILE]
+    init_db()
+    clear_connections_table()
+    clear_history_messages()
+
+    files_to_clear = [KEY_FILE, LOG_FILE]
     for file_path in files_to_clear:
         with open(file_path, "w", encoding="utf-8") as f:
             f.write("")
