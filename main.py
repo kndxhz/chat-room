@@ -27,7 +27,7 @@ LOG_FILE = "./chat-room.log"
 CLOUDFLARE_API_TOKEN = "CLOUDFLARE_API_TOKEN"
 ZONE_ID = "ZONE_ID"  # 替换为你的 Zone ID
 RECORD_ID = "RECORD_ID"  # 替换为你的 Record ID
-DOMAIN = "im.kndxhz.cn"
+DOMAIN = "DOMAIN"
 LAST_ALT_PRESS_TIME = 0
 DOUBLE_CLICK_THRESHOLD = 0.3  # 双击时间阈值（秒）
 
@@ -252,7 +252,7 @@ async def broadcast_connection_list(client):
     lines = tem_
     if lines:
         lines = lines[-100:]  # 只发送最后100行历史记录
-
+    lines.append(SYSTEM_PREFIX + "----以上是历史记录----")
     await asyncio.gather(*[client.send(line) for line in lines])
 
 
