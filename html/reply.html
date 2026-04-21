@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>聊天室提醒</title>
+</head>
+<body>
+    <h1 id="mainTitle" class="text">聊天室有人回复了你</h1>
+
+    <script>
+        (function() {
+            // 获取 URL 参数
+            const paramsStr = window.location.search;
+            const params = new URLSearchParams(paramsStr);
+            const name = params.get('name');
+
+            // 获取标题元素
+            const titleElement = document.getElementById("mainTitle");
+
+            if (titleElement) {
+                // 如果有 name 参数，显示个性化消息；否则显示默认消息
+                if (name) {
+                    titleElement.innerHTML = `聊天室里 ${name} 回复了你`;
+                } else {
+                    titleElement.innerHTML = `聊天室有人回复了你`;
+                }
+            }
+
+            // 控制台输出调试信息
+            console.log(name || "未提供 name 参数");
+        })();
+    </script>
+</body>
+</html>
