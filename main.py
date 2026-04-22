@@ -15,6 +15,7 @@ import mimetypes
 import re
 import sqlite3
 import threading
+from urllib.parse import unquote
 
 connected_clients = set()
 UPLOAD_FOLDER = "./files"
@@ -44,10 +45,7 @@ logger = logging.getLogger("chat-room")
 db_lock = threading.Lock()
 if not logger.handlers:
     logger.setLevel(logging.INFO)
-    log_formatter = logging.Formatter(
-        "%(asctime)s | %(levelname)s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+    log_formatter = logging.Formatter("%(message)s")
 
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(log_formatter)
@@ -60,19 +58,81 @@ if not logger.handlers:
     logger.propagate = False
 
 
-def log_event(level, action, **fields):
-    parts = [action]
-    for key, value in fields.items():
+def _format_log_value(value):
+    value_text = str(value).replace("\r\n", "\n").replace("\r", "\n")
+    value_text = value_text.replace("\n", "\\n")
+    if len(value_text) > 240:
+        value_text = value_text[:237] + "..."
+    value_text = value_text.replace("|", "/")
+    return value_text
+
+
+def _format_log_event(level, action, field_items):
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    level_name = logging.getLevelName(level)
+    parts = [timestamp, level_name, action]
+    for key, value in field_items:
         if value is None or value == "":
             continue
-        value_text = str(value).replace("\n", "\\n")
-        if len(value_text) > 80:
-            value_text = value_text[:77] + "..."
-        if key == "transition":
-            parts.append(value_text)
-        else:
-            parts.append(f"{key}={value_text}")
-    logger.log(level, " | ".join(parts))
+        value_text = _format_log_value(value)
+        parts.append(f"{key}={value_text}")
+    return " ".join(parts)
+
+
+LOG_FIELD_WHITELIST = {
+    "接收消息": ["sender", "message"],
+    "接收回复": ["sender", "reply_to", "message"],
+    "入房改名": ["transition"],
+    "用户改名": ["transition"],
+    "进入房间": ["user"],
+    "退出房间": ["user"],
+    "下载文件": ["user", "file"],
+    "昵称格式不合法": ["name"],
+    "昵称重复": ["name"],
+    "封禁IP": ["ip"],
+    "解除封禁": ["ip"],
+    "删除文件": ["file"],
+    "文件不存在": ["file"],
+    "更新 DNS 成功": ["domain"],
+    "更新 DNS 失败": ["code", "error"],
+    "WebSocket 启动": ["url"],
+    "必应图片信息": ["title"],
+}
+
+
+def log_event(level, action, **fields):
+    allowed_keys = LOG_FIELD_WHITELIST.get(action)
+    if allowed_keys is None:
+        allowed_keys = ["error"] if level >= logging.ERROR else []
+
+    ordered_items = []
+    for key in allowed_keys:
+        if key in fields:
+            ordered_items.append((key, fields.get(key)))
+    logger.log(level, _format_log_event(level, action, ordered_items))
+
+
+def parse_reply_meta(content):
+    source = (content or "").replace("\r\n", "\n").replace("\r", "\n")
+    token_match = re.match(
+        r"^\s*\[\[reply:([^|\]]*)\|([^|\]]*)(?:\|([^\]]*))?\]\]\s*\n?",
+        source,
+        flags=re.IGNORECASE,
+    )
+    if not token_match:
+        return None
+
+    reply_to = unquote(token_match.group(1) or "").strip()
+    preview = unquote(token_match.group(2) or "").strip()
+    target_msgid = unquote(token_match.group(3) or "").strip()
+    body = source[token_match.end() :].lstrip("\n")
+
+    return {
+        "reply_to": reply_to,
+        "preview": preview,
+        "target_msgid": target_msgid,
+        "body": body,
+    }
 
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -423,7 +483,8 @@ async def broadcast_connection_list(client):
     #     await asyncio.gather(
     #         *[c.send(message) for c in connected_clients if c != client]
     #     )
-    log_event(logging.INFO, "进入房间", ip=client.remote_address[0])
+    user_name = getattr(client, "name", client.remote_address[0])
+    log_event(logging.INFO, "进入房间", user=user_name)
     lines = get_recent_raw_messages(100)
     if lines:
         lines = lines[-100:]  # 只发送最后100行历史记录
@@ -435,7 +496,8 @@ async def broadcast_exit_message(client):
     # name = getattr(client, "name", client.remote_address[0])
     # message = f"{name} 退出了房间"
     # await asyncio.gather(*[c.send(message) for c in connected_clients if c != client])
-    log_event(logging.INFO, "退出房间", ip=client.remote_address[0])
+    user_name = getattr(client, "name", client.remote_address[0])
+    log_event(logging.INFO, "退出房间", user=user_name)
 
 
 async def close_websocket_by_ip(ip):
@@ -462,12 +524,6 @@ async def handler(websocket):
         await broadcast_connection_list(websocket)  # 广播连接消息
 
         async for message in websocket:
-            log_event(
-                logging.INFO,
-                "接收消息",
-                ip=websocket.remote_address[0],
-                message=message,
-            )
             if message.startswith("/set-name"):
                 # 获取当前时间
                 current_time = datetime.datetime.now()
@@ -614,13 +670,25 @@ async def handler(websocket):
             else:
                 name = getattr(websocket, "name", websocket.remote_address[0])
                 _, formatted_message = save_message(name, message)
+                reply_meta = parse_reply_meta(message)
+                if reply_meta:
+                    log_event(
+                        logging.INFO,
+                        "接收回复",
+                        sender=name,
+                        reply_to=reply_meta.get("reply_to", ""),
+                        message=reply_meta.get("body", ""),
+                    )
+                else:
+                    log_event(
+                        logging.INFO,
+                        "接收消息",
+                        sender=name,
+                        message=message,
+                    )
                 # 将消息广播给所有连接的客户端
                 await asyncio.gather(
-                    *[
-                        client.send(formatted_message)
-                        for client in connected_clients
-                        if client != websocket
-                    ]
+                    *[client.send(formatted_message) for client in connected_clients]
                 )
     except websockets.exceptions.ConnectionClosed:
         pass
@@ -698,7 +766,7 @@ if __name__ == "__main__":
     log_event(logging.INFO, "生成秘钥", key=key)
     update_cloudflare_dns(get_host_ip())
     download_bing_pic()
-    log_event(logging.INFO, "必应图片信息", info=BING_INFO.replace("\n", "|"))
+    log_event(logging.INFO, "必应图片信息", title=BING_INFO.replace("\n", "|"))
     keyboard.hook(on_alt_press)
     loop = asyncio.get_event_loop()
     # 同时运行 Flask 和 WebSocket 服务器
