@@ -13,9 +13,6 @@ import keyboard
 import pyperclip
 import mimetypes
 import re
-import sqlite3
-import threading
-from urllib.parse import unquote
 
 connected_clients = set()
 UPLOAD_FOLDER = "./files"
@@ -25,7 +22,6 @@ HISTORY_FILE = "./history.txt"
 KEY_FILE = "./key.txt"
 BAN_FILE = "./ban.txt"
 LOG_FILE = "./chat-room.log"
-DB_FILE = "./chat.db"
 
 
 CLOUDFLARE_API_TOKEN = "CLOUDFLARE_API_TOKEN"
@@ -42,10 +38,12 @@ SYSTEM_ALERT_PREFIX = "[SYSTEM:ALERT]"
 app = Flask(__name__)
 CORS(app)  # 允许跨域
 logger = logging.getLogger("chat-room")
-db_lock = threading.Lock()
 if not logger.handlers:
     logger.setLevel(logging.INFO)
-    log_formatter = logging.Formatter("%(message)s")
+    log_formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(log_formatter)
@@ -58,269 +56,23 @@ if not logger.handlers:
     logger.propagate = False
 
 
-def _format_log_value(value):
-    value_text = str(value).replace("\r\n", "\n").replace("\r", "\n")
-    value_text = value_text.replace("\n", "\\n")
-    if len(value_text) > 240:
-        value_text = value_text[:237] + "..."
-    value_text = value_text.replace("|", "/")
-    return value_text
-
-
-def _format_log_event(level, action, field_items):
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    level_name = logging.getLevelName(level)
-    parts = [timestamp, level_name, action]
-    for key, value in field_items:
+def log_event(level, action, **fields):
+    parts = [action]
+    for key, value in fields.items():
         if value is None or value == "":
             continue
-        value_text = _format_log_value(value)
-        parts.append(f"{key}={value_text}")
-    return " ".join(parts)
-
-
-LOG_FIELD_WHITELIST = {
-    "接收消息": ["sender", "message"],
-    "接收回复": ["sender", "reply_to", "message"],
-    "入房改名": ["transition"],
-    "用户改名": ["transition"],
-    "进入房间": ["user"],
-    "退出房间": ["user"],
-    "下载文件": ["user", "file"],
-    "昵称格式不合法": ["name"],
-    "昵称重复": ["name"],
-    "封禁IP": ["ip"],
-    "解除封禁": ["ip"],
-    "删除文件": ["file"],
-    "文件不存在": ["file"],
-    "更新 DNS 成功": ["domain"],
-    "更新 DNS 失败": ["code", "error"],
-    "WebSocket 启动": ["url"],
-    "必应图片信息": ["title"],
-}
-
-
-def log_event(level, action, **fields):
-    allowed_keys = LOG_FIELD_WHITELIST.get(action)
-    if allowed_keys is None:
-        allowed_keys = ["error"] if level >= logging.ERROR else []
-
-    ordered_items = []
-    for key in allowed_keys:
-        if key in fields:
-            ordered_items.append((key, fields.get(key)))
-    logger.log(level, _format_log_event(level, action, ordered_items))
-
-
-def parse_reply_meta(content):
-    source = (content or "").replace("\r\n", "\n").replace("\r", "\n")
-    token_match = re.match(
-        r"^\s*\[\[reply:([^|\]]*)\|([^|\]]*)(?:\|([^\]]*))?\]\]\s*\n?",
-        source,
-        flags=re.IGNORECASE,
-    )
-    if not token_match:
-        return None
-
-    reply_to = unquote(token_match.group(1) or "").strip()
-    preview = unquote(token_match.group(2) or "").strip()
-    target_msgid = unquote(token_match.group(3) or "").strip()
-    body = source[token_match.end() :].lstrip("\n")
-
-    return {
-        "reply_to": reply_to,
-        "preview": preview,
-        "target_msgid": target_msgid,
-        "body": body,
-    }
+        value_text = str(value).replace("\n", "\\n")
+        if len(value_text) > 80:
+            value_text = value_text[:77] + "..."
+        if key == "transition":
+            parts.append(value_text)
+        else:
+            parts.append(f"{key}={value_text}")
+    logger.log(level, " | ".join(parts))
 
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(IMAGE_FOLDER, exist_ok=True)
-
-
-def init_db():
-    with db_lock:
-        conn = sqlite3.connect(DB_FILE)
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='connections'"
-            )
-            has_connections = cursor.fetchone() is not None
-            if has_connections:
-                cursor.execute("PRAGMA table_info(connections)")
-                columns = [row[1] for row in cursor.fetchall()]
-                # 旧结构是 ip 主键，不支持同 IP 多连接；检测到则迁移重建
-                if "session_id" not in columns:
-                    cursor.execute("DROP TABLE IF EXISTS connections")
-
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS connections (
-                    session_id TEXT PRIMARY KEY,
-                    ip TEXT NOT NULL,
-                    name TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                )
-                """
-            )
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS messages (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    msg_id TEXT UNIQUE NOT NULL,
-                    sender TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    raw_message TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                )
-                """
-            )
-            conn.commit()
-        finally:
-            conn.close()
-
-
-def sync_connections_to_db():
-    now_text = datetime.datetime.now().isoformat(timespec="seconds")
-    rows = []
-    for client in connected_clients:
-        ip = client.remote_address[0]
-        port = client.remote_address[1]
-        session_id = f"{ip}:{port}"
-        name = getattr(client, "name", ip)
-        rows.append((session_id, ip, name, now_text))
-
-    with db_lock:
-        conn = sqlite3.connect(DB_FILE)
-        try:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM connections")
-            if rows:
-                cursor.executemany(
-                    "INSERT INTO connections(session_id, ip, name, updated_at) VALUES (?, ?, ?, ?)",
-                    rows,
-                )
-            conn.commit()
-        finally:
-            conn.close()
-
-
-def get_nickname_by_ip(ip):
-    with db_lock:
-        conn = sqlite3.connect(DB_FILE)
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT name FROM connections WHERE ip = ? ORDER BY updated_at DESC LIMIT 1",
-                (ip,),
-            )
-            row = cursor.fetchone()
-            if row and row[0]:
-                return row[0]
-        finally:
-            conn.close()
-    return ip
-
-
-def get_connection_rows():
-    with db_lock:
-        conn = sqlite3.connect(DB_FILE)
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT ip, name FROM connections ORDER BY updated_at DESC, name ASC"
-            )
-            return cursor.fetchall()
-        finally:
-            conn.close()
-
-
-def generate_message_id():
-    return datetime.datetime.now().strftime("%Y%m%d%H%M%S%f") + str(
-        random.randint(1000, 9999)
-    )
-
-
-def save_message(sender, content):
-    msg_id = generate_message_id()
-    raw_message = f"{sender}：[[msg:{msg_id}]]\n{content}"
-    created_at = datetime.datetime.now().isoformat(timespec="seconds")
-    with db_lock:
-        conn = sqlite3.connect(DB_FILE)
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT INTO messages(msg_id, sender, content, raw_message, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (msg_id, sender, content, raw_message, created_at),
-            )
-            conn.commit()
-        finally:
-            conn.close()
-    return msg_id, raw_message
-
-
-def get_recent_raw_messages(limit=100):
-    with db_lock:
-        conn = sqlite3.connect(DB_FILE)
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT raw_message FROM messages ORDER BY id DESC LIMIT ?", (limit,)
-            )
-            rows = cursor.fetchall()
-        finally:
-            conn.close()
-    messages = [row[0] for row in rows][::-1]
-    return [m for m in messages if "kick" not in m]
-
-
-def get_message_by_msg_id(msg_id):
-    with db_lock:
-        conn = sqlite3.connect(DB_FILE)
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT msg_id, raw_message, sender, created_at FROM messages WHERE msg_id = ?",
-                (msg_id,),
-            )
-            row = cursor.fetchone()
-        finally:
-            conn.close()
-    if not row:
-        return None
-    return {
-        "msg_id": row[0],
-        "message": row[1],
-        "sender": row[2],
-        "created_at": row[3],
-    }
-
-
-def clear_history_messages():
-    with db_lock:
-        conn = sqlite3.connect(DB_FILE)
-        try:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM messages")
-            conn.commit()
-        finally:
-            conn.close()
-
-
-def clear_connections_table():
-    with db_lock:
-        conn = sqlite3.connect(DB_FILE)
-        try:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM connections")
-            conn.commit()
-        finally:
-            conn.close()
 
 
 @app.route("/upload", methods=["POST"])
@@ -328,7 +80,7 @@ def upload_file():
     if "file" not in request.files:
         return jsonify({"error": "没有找到文件"}), 400
     file = request.files["file"]
-    file.filename = (file.filename or "").replace(" ", "")
+    file.filename = file.filename.replace(" ", "")
     if file.filename == "":
         return jsonify({"error": "文件名为空"}), 400
 
@@ -346,7 +98,17 @@ def download_file(filename):
         client_ip = request.remote_addr
 
         # 读取昵称
-        nickname = get_nickname_by_ip(client_ip)
+        nickname = client_ip
+        try:
+            with open(CONNECT_FILE, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith(client_ip):
+                        parts = line.split(" ", 1)
+                        if len(parts) == 2:
+                            nickname = parts[1].strip()
+                        break
+        except FileNotFoundError:
+            pass  # 文件不存在就用 IP
 
         file_path = os.path.join(UPLOAD_FOLDER, filename)
         if not os.path.isfile(file_path):
@@ -384,13 +146,8 @@ def download_bing_pic():
         response = requests.get(
             "https://cn.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=zh-CN"
         )
-        if response.status_code != 200:
-            return
-
-        data = response.json()
-        if not data.get("images"):
-            return
-
+        if response.status_code == 200:
+            data = response.json()
         url = "https://cn.bing.com/" + data["images"][0]["url"]
         response = requests.get(url)
 
@@ -408,8 +165,6 @@ def download_bing_pic():
         )
 
         m = pat.search(localtion)
-        place = ""
-        copyr = ""
         if m:
             place = m.group("place").strip()  # 伊斯特本码头, 东萨塞克斯郡, 英格兰
             copyr = m.group("copyright").strip()  # © Tolga_TEZCAN/Getty Images
@@ -428,17 +183,13 @@ def file_list():
     return jsonify(files), 200
 
 
-@app.route("/get_message_by_id/<msg_id>", methods=["GET"])
-def get_message_by_id(msg_id):
-    data = get_message_by_msg_id(msg_id)
-    if not data:
-        return jsonify({"found": False}), 404
-    return jsonify({"found": True, **data}), 200
-
-
 def update_connect_file():
-    """同步在线连接到数据库"""
-    sync_connections_to_db()
+    """更新 connect.txt 文件，记录所有连接的客户端信息"""
+    with open(CONNECT_FILE, "w", encoding="utf-8") as f:
+        for client in connected_clients:
+            name = getattr(client, "name", client.remote_address[0])
+            ip = client.remote_address[0]
+            f.write(f"{ip} {name}\n")
 
 
 async def send_system_message(client, message):
@@ -490,9 +241,15 @@ async def broadcast_connection_list(client):
     #     await asyncio.gather(
     #         *[c.send(message) for c in connected_clients if c != client]
     #     )
-    user_name = getattr(client, "name", client.remote_address[0])
-    log_event(logging.INFO, "进入房间", user=user_name)
-    lines = get_recent_raw_messages(100)
+    log_event(logging.INFO, "进入房间", ip=client.remote_address[0])
+    with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    tem_ = []
+    for i in lines:
+        if "kick" in i:
+            continue
+        tem_.append(i.replace("#换行", "\n"))
+    lines = tem_
     if lines:
         lines = lines[-100:]  # 只发送最后100行历史记录
     lines.append(SYSTEM_PREFIX + "----以上是历史记录----")
@@ -503,8 +260,7 @@ async def broadcast_exit_message(client):
     # name = getattr(client, "name", client.remote_address[0])
     # message = f"{name} 退出了房间"
     # await asyncio.gather(*[c.send(message) for c in connected_clients if c != client])
-    user_name = getattr(client, "name", client.remote_address[0])
-    log_event(logging.INFO, "退出房间", user=user_name)
+    log_event(logging.INFO, "退出房间", ip=client.remote_address[0])
 
 
 async def close_websocket_by_ip(ip):
@@ -531,6 +287,12 @@ async def handler(websocket):
         await broadcast_connection_list(websocket)  # 广播连接消息
 
         async for message in websocket:
+            log_event(
+                logging.INFO,
+                "接收消息",
+                ip=websocket.remote_address[0],
+                message=message,
+            )
             if message.startswith("/set-name"):
                 # 获取当前时间
                 current_time = datetime.datetime.now()
@@ -552,7 +314,10 @@ async def handler(websocket):
                     )
 
                 # 检查昵称是否重复
-                elif new_name != old_name and new_name in get_online_user_names():
+                elif new_name in [
+                    line.split(" ", 1)[1].strip()
+                    for line in open(CONNECT_FILE, "r", encoding="utf-8").readlines()
+                ]:
                     log_event(
                         logging.WARNING,
                         "昵称重复",
@@ -627,10 +392,9 @@ async def handler(websocket):
                 try:
                     ip = message.split(" ")[1]
                     log_event(logging.INFO, "解除封禁", ip=ip)
-                    with open(BAN_FILE, "r", encoding="utf-8") as f:
+                    with open(BAN_FILE, "w+", encoding="utf-8") as f:
                         lines = f.readlines()
-                    lines = [line for line in lines if line.strip() != ip]
-                    with open(BAN_FILE, "w", encoding="utf-8") as f:
+                        lines = [line for line in lines if line.strip() != ip]
                         f.writelines(lines)
 
                 except Exception as e:
@@ -666,37 +430,26 @@ async def handler(websocket):
 
             elif message == "/list":
                 update_connect_file()
-                rows = get_connection_rows()
-                content = "\n".join([f"{ip} {name}" for ip, name in rows])
+                with open(CONNECT_FILE, "r", encoding="utf-8") as f:
+                    content = f.read()
                 log_event(
                     logging.INFO, "列出在线客户端", ip=websocket.remote_address[0]
                 )
                 await send_system_message(websocket, "当前在线的客户端:\n" + content)
             elif message == "/clear":
                 log_event(logging.INFO, "清空聊天记录", ip=websocket.remote_address[0])
-                clear_history_messages()
             else:
                 name = getattr(websocket, "name", websocket.remote_address[0])
-                _, formatted_message = save_message(name, message)
-                reply_meta = parse_reply_meta(message)
-                if reply_meta:
-                    log_event(
-                        logging.INFO,
-                        "接收回复",
-                        sender=name,
-                        reply_to=reply_meta.get("reply_to", ""),
-                        message=reply_meta.get("body", ""),
-                    )
-                else:
-                    log_event(
-                        logging.INFO,
-                        "接收消息",
-                        sender=name,
-                        message=message,
-                    )
+                formatted_message = f"{name}：{message}"
+                with open(HISTORY_FILE, "a", encoding="utf-8") as f:
+                    f.write(formatted_message.replace("\n", "#换行") + "\n")
                 # 将消息广播给所有连接的客户端
                 await asyncio.gather(
-                    *[client.send(formatted_message) for client in connected_clients]
+                    *[
+                        client.send(formatted_message)
+                        for client in connected_clients
+                        if client != websocket
+                    ]
                 )
     except websockets.exceptions.ConnectionClosed:
         pass
@@ -760,11 +513,7 @@ def run_flask_app():
 if __name__ == "__main__":
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
     app.logger.setLevel(logging.WARNING)
-    init_db()
-    clear_connections_table()
-    clear_history_messages()
-
-    files_to_clear = [KEY_FILE, LOG_FILE]
+    files_to_clear = [CONNECT_FILE, HISTORY_FILE, KEY_FILE, LOG_FILE]
     for file_path in files_to_clear:
         with open(file_path, "w", encoding="utf-8") as f:
             f.write("")
@@ -774,7 +523,7 @@ if __name__ == "__main__":
     log_event(logging.INFO, "生成秘钥", key=key)
     update_cloudflare_dns(get_host_ip())
     download_bing_pic()
-    log_event(logging.INFO, "必应图片信息", title=BING_INFO.replace("\n", "|"))
+    log_event(logging.INFO, "必应图片信息", info=BING_INFO.replace("\n", "|"))
     keyboard.hook(on_alt_press)
     loop = asyncio.get_event_loop()
     # 同时运行 Flask 和 WebSocket 服务器

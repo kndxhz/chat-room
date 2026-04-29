@@ -13,6 +13,7 @@
       height: 100vh;
       overflow: hidden;
       color: #333;
+      /* 关键渲染样式内联避免FOUC */
       display: block !important;
       background-size: cover;
       background-position: center;
@@ -20,9 +21,312 @@
     }
 
     img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .lightbox {
+      width: 80%;
+      height: 80%;
+    }
+
+    .chat-container {
+      width: 100vw;
+      max-width: none;
+      height: 100vh;
+      background: transparent;
+      backdrop-filter: none;
+      border-radius: 0;
+      box-shadow: none;
+      display: block;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .chat-main {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chat-header {
+      display: none;
+    }
+
+    .chat-messages {
+      flex: 1;
+      padding: 120px 24px 160px 24px;
+      overflow-y: auto;
+      color: #333;
       max-width: 100%;
-      height: auto;
-      object-fit: contain;
+      font-size: 1.1em;
+      /* 增大字体，提高可读性 */
+      background: rgba(255, 255, 255, 0.24);
+    }
+
+    .chat-messages p {
+      margin: 5px 0;
+    }
+
+    .chat-input {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 16px;
+      backdrop-filter: blur(12px);
+      position: absolute;
+      left: 24px;
+      right: 24px;
+      bottom: 24px;
+      z-index: 3;
+    }
+
+    .chat-input-row {
+      position: relative;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .chat-input input,
+    .chat-input textarea {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 5px;
+      outline: none;
+      font-size: 1em;
+      background: rgba(255, 255, 255, 0.7);
+      /* 增强背景对比度 */
+    }
+
+    .chat-input textarea {
+      width: auto;
+      min-height: 44px;
+      max-height: 160px;
+      resize: none;
+    }
+
+    .chat-input input[type="file"] {
+      flex: 1;
+      min-width: 0;
+      background: rgba(255, 255, 255, 0.75);
+      border-radius: 5px;
+      padding: 8px;
+    }
+
+    .chat-input button {
+      padding: 10px 15px;
+      border: none;
+      border-radius: 5px;
+      background: #007bff;
+      color: white;
+      font-size: 1em;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .chat-input button:hover {
+      background: #0056b3;
+    }
+
+    .reply-bar {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(0, 123, 255, 0.12);
+      border-left: 3px solid #007bff;
+      color: #0f172a;
+      font-size: 0.92em;
+    }
+
+    .reply-bar.open {
+      display: flex;
+    }
+
+    .reply-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .reply-cancel-btn {
+      flex: none;
+      padding: 4px 8px;
+      border: none;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.75);
+      color: #334155;
+      cursor: pointer;
+    }
+
+    .reply-cancel-btn:hover {
+      background: rgba(255, 255, 255, 0.95);
+    }
+
+    .mention-alert-bar {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(245, 158, 11, 0.16);
+      border-left: 3px solid #f59e0b;
+      color: #7c2d12;
+      font-size: 0.92em;
+    }
+
+    .mention-alert-bar.open {
+      display: flex;
+    }
+
+    .mention-alert-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .mention-close-btn {
+      flex: none;
+      padding: 4px 8px;
+      border: none;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.75);
+      color: #7c2d12;
+      cursor: pointer;
+    }
+
+    .mention-picker {
+      display: none;
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: calc(100% + 8px);
+      max-height: 56px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      -webkit-overflow-scrolling: touch;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+      padding: 8px 10px;
+      white-space: nowrap;
+      z-index: 5;
+    }
+
+    .mention-picker::-webkit-scrollbar {
+      display: none;
+    }
+
+    .mention-picker.open {
+      display: block;
+    }
+
+    .mention-option {
+      display: inline-flex;
+      flex: none;
+      align-items: center;
+      border: 1px solid rgba(0, 123, 255, 0.22);
+      background: rgba(0, 123, 255, 0.08);
+      border-radius: 999px;
+      text-align: left;
+      padding: 6px 10px;
+      margin-right: 8px;
+      font-size: 0.9em;
+      color: #0f172a;
+      cursor: pointer;
+      max-width: 100%;
+      white-space: nowrap;
+    }
+
+    .mention-option:hover {
+      background: rgba(0, 123, 255, 0.18);
+      border-color: rgba(0, 123, 255, 0.38);
+    }
+
+    .file-list {
+      flex: none;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 16px;
+      backdrop-filter: blur(12px);
+      overflow-y: auto;
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      width: 280px;
+      max-height: calc(100vh - 200px);
+      z-index: 3;
+    }
+
+    .file-list h3 {
+      text-align: center;
+      color: #333;
+    }
+
+    .file-list a {
+      display: block;
+      margin: 5px 0;
+      color: #007bff;
+      text-decoration: none;
+    }
+
+    .file-list a:hover {
+      text-decoration: underline;
+    }
+
+    .instructions {
+      flex: none;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 16px;
+      backdrop-filter: blur(12px);
+      overflow-y: auto;
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      width: 280px;
+      max-height: calc(100vh - 200px);
+      z-index: 3;
+    }
+
+    .instructions h3 {
+      text-align: center;
+      color: #333;
+    }
+
+    .instructions p {
+      margin: 10px 0;
+      color: #333;
+    }
+
+    .background-info-box {
+      margin: 0 0 10px 0;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.32);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      font-size: 0.92em;
+      color: #222;
+      line-height: 1.45;
+      white-space: pre-wrap;
     }
 
     .message-content {
@@ -31,54 +335,50 @@
       background: rgba(255, 255, 255, 0.5);
       border-radius: 10px;
       word-wrap: break-word;
+      /* 自动换行 */
       word-break: break-word;
+      /* 支持长单词换行 */
+      overflow-wrap: break-word;
+      /* 兼容性 */
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      font-size: 1.1em;
+      display: inline-block;
+      width: fit-content;
+      max-width: min(78vw, 900px);
     }
 
-    .message-content img {
-      display: block;
-      max-width: 100%;
-      height: auto;
-      object-fit: contain;
-      cursor: zoom-in;
+    .message-container {
+      width: 100%;
+      display: flex;
+      justify-content: flex-start;
     }
 
-    .chat-container {
-      position: relative;
-      z-index: 1;
+    .message-content.sent {
+      background: rgba(0, 123, 255, 0.1);
+      border-left: 3px solid #007bff;
+      margin-left: 0;
+      border-radius: 0 10px 10px 10px;
     }
 
-    .viewer-zoom-indicator {
-      position: fixed;
-      left: 24px;
-      bottom: 24px;
-      z-index: 10001;
-      padding: 6px 12px;
-      border-radius: 999px;
-      background: rgba(0, 0, 0, 0.62);
-      color: #fff;
-      font-size: 12px;
-      line-height: 1;
-      letter-spacing: 0.02em;
-      user-select: none;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.18s ease;
-      backdrop-filter: blur(8px);
-    }
-
-    .viewer-zoom-indicator.visible {
-      opacity: 1;
+    .message-content.received {
+      background: rgba(255, 255, 255, 0.5);
+      border-left: 3px solid #333;
+      margin-left: 0;
+      border-radius: 0 10px 10px 10px;
     }
 
     .message-content pre {
       position: relative;
-      margin: 10px 0;
-      padding: 0;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 1em;
       border-radius: 5px;
       overflow-x: auto;
-      white-space: pre;
-      word-break: normal;
-      background: transparent;
+      white-space: pre-wrap;
+      white-space: -moz-pre-wrap;
+      white-space: -pre-wrap;
+      white-space: -o-pre-wrap;
+      word-wrap: break-word;
     }
 
     .message-content.sent {
@@ -111,19 +411,10 @@
       opacity: 1;
     }
 
-    .message-content :not(pre)>code {
+    .message-content code {
       background: rgba(0, 0, 0, 0.1);
       padding: 2px 4px;
       border-radius: 3px;
-    }
-
-    .message-content pre code {
-      display: block;
-      padding: 1em;
-      border-radius: 5px;
-      background: #1e1e1e;
-      color: #d4d4d4;
-      white-space: inherit;
     }
 
     .message-content blockquote {
@@ -142,12 +433,6 @@
       color: #1e3a8a;
       font-size: 0.92em;
       word-break: break-word;
-    }
-
-    .message-jump-highlight {
-      outline: 2px solid rgba(245, 158, 11, 0.9);
-      box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.22);
-      transition: box-shadow 0.2s ease;
     }
 
     #messageInput {
@@ -176,9 +461,9 @@
     }
 
     .hljs {
-      background: #1e1e1e !important;
+      background: #f5f5f5 !important;
       padding: 1em !important;
-      border-radius: 5px;
+      border-radius: 4px;
     }
 
     @media (max-width: 768px) {
@@ -439,10 +724,6 @@
     }
 
     #bg-holder {
-      position: fixed;
-      inset: 0;
-      z-index: 0;
-      pointer-events: none;
       background-size: cover !important;
       background-repeat: no-repeat !important;
       background-position: center center !important;
@@ -628,309 +909,15 @@
   <script src="js/purify.min.js"></script>
   <script src="js/highlight.min.js"></script>
   <script src="js/jquery.min.js"></script>
-  <script src="js/viewer.min.js"></script>
+  <script src="js/lightbox.js"></script>
   <!-- <script src="js/highlight.javascript.min.js"></script>
     <script src="js/highlight.python.min.js"></script>
     <script src="js/highlight.xml.min.js"></script> -->
   <link rel="stylesheet" href="css/default.min.css" />
   <link rel="stylesheet" href="css/github.min.css" />
-  <link rel="stylesheet" href="css/viewer.min.css" />
+  <link rel="stylesheet" href="css/lightbox.min.css" />
   <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.0/styles/default.min.css"> -->
-  <style>
-    body {
-      display: block !important;
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
-    }
-
-    .chat-container {
-      width: 100vw;
-      max-width: none;
-      height: 100vh;
-      background: transparent;
-      backdrop-filter: none;
-      border-radius: 0;
-      box-shadow: none;
-      display: block;
-      overflow: hidden;
-      transition: all 0.3s ease;
-      position: relative;
-      z-index: 1;
-    }
-
-    .chat-main {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .chat-header {
-      display: none;
-    }
-
-    .chat-messages {
-      flex: 1;
-      padding: 24px 24px 160px 24px;
-      overflow-y: auto;
-      color: #333;
-      max-width: 100%;
-      font-size: 1.1em;
-      background: rgba(255, 255, 255, 0.24);
-    }
-
-    .chat-messages p {
-      margin: 5px 0;
-    }
-
-    .chat-input {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      padding: 14px;
-      background: rgba(255, 255, 255, 0.18);
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      border-radius: 16px;
-      backdrop-filter: blur(12px);
-      position: absolute;
-      left: 24px;
-      right: 24px;
-      bottom: 24px;
-      z-index: 3;
-    }
-
-    .chat-input-row {
-      position: relative;
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .chat-input input,
-    .chat-input textarea {
-      flex: 1;
-      padding: 10px;
-      border: none;
-      border-radius: 5px;
-      outline: none;
-      font-size: 1em;
-      background: rgba(255, 255, 255, 0.7);
-    }
-
-    .chat-input textarea {
-      width: auto;
-      min-height: 44px;
-      max-height: 160px;
-      resize: none;
-    }
-
-    .chat-input input[type="file"] {
-      flex: 1;
-      min-width: 0;
-      background: rgba(255, 255, 255, 0.75);
-      border-radius: 5px;
-      padding: 8px;
-    }
-
-    .chat-input button {
-      padding: 10px 15px;
-      border: none;
-      border-radius: 5px;
-      background: #007bff;
-      color: white;
-      font-size: 1em;
-      cursor: pointer;
-      transition: background 0.3s;
-    }
-
-    .chat-input button:hover {
-      background: #0056b3;
-    }
-
-    .reply-bar {
-      display: none;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 8px 10px;
-      border-radius: 10px;
-      background: rgba(0, 123, 255, 0.12);
-      border-left: 3px solid #007bff;
-      color: #0f172a;
-      font-size: 0.92em;
-    }
-
-    .reply-bar.open {
-      display: flex;
-    }
-
-    .reply-text,
-    .mention-alert-text {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .reply-cancel-btn,
-    .mention-close-btn {
-      flex: none;
-      padding: 4px 8px;
-      border: none;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.75);
-      cursor: pointer;
-    }
-
-    .mention-alert-bar {
-      display: none;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 8px 10px;
-      border-radius: 10px;
-      background: rgba(245, 158, 11, 0.16);
-      border-left: 3px solid #f59e0b;
-      color: #7c2d12;
-      font-size: 0.92em;
-    }
-
-    .mention-alert-bar.open {
-      display: flex;
-    }
-
-    .mention-picker {
-      display: none;
-      position: absolute;
-      left: 14px;
-      right: 14px;
-      bottom: calc(100% + 8px);
-      max-height: 56px;
-      overflow-x: auto;
-      overflow-y: hidden;
-      scrollbar-width: none;
-      -ms-overflow-style: none;
-      -webkit-overflow-scrolling: touch;
-      border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.35);
-      background: rgba(255, 255, 255, 0.82);
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
-      padding: 8px 10px;
-      white-space: nowrap;
-      z-index: 5;
-    }
-
-    .mention-picker.open {
-      display: block;
-    }
-
-    .file-list,
-    .instructions {
-      flex: none;
-      padding: 14px;
-      background: rgba(255, 255, 255, 0.18);
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      border-radius: 16px;
-      backdrop-filter: blur(12px);
-      overflow-y: auto;
-      position: absolute;
-      top: 24px;
-      width: 280px;
-      max-height: calc(100vh - 200px);
-      z-index: 3;
-    }
-
-    .file-list {
-      right: 24px;
-    }
-
-    .instructions {
-      left: 24px;
-    }
-
-    .background-info-box {
-      margin: 0 0 10px 0;
-      padding: 8px 10px;
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.32);
-      border: 1px solid rgba(255, 255, 255, 0.35);
-      font-size: 0.92em;
-      color: #222;
-      line-height: 1.45;
-      white-space: pre-wrap;
-    }
-
-    .message-container {
-      width: 100%;
-      display: flex;
-      justify-content: flex-start;
-    }
-
-    .message-content {
-      margin: 5px 0;
-      padding: 10px;
-      background: rgba(255, 255, 255, 0.5);
-      border-radius: 10px;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-      font-size: 1.1em;
-      display: inline-block;
-      width: fit-content;
-      max-width: min(78vw, 900px);
-    }
-
-    .message-content.sent {
-      background: rgba(0, 123, 255, 0.1);
-      border-left: 3px solid #007bff;
-      border-radius: 0 10px 10px 10px;
-    }
-
-    .message-content.received {
-      background: rgba(255, 255, 255, 0.5);
-      border-left: 3px solid #333;
-      border-radius: 0 10px 10px 10px;
-    }
-
-    .message-content pre {
-      position: relative;
-      background: #1e1e1e;
-      color: #d4d4d4;
-      padding: 1em;
-      border-radius: 5px;
-      overflow-x: auto;
-      white-space: pre-wrap;
-      white-space: -moz-pre-wrap;
-      white-space: -pre-wrap;
-      white-space: -o-pre-wrap;
-      word-wrap: break-word;
-    }
-
-    .message-content code {
-      background: rgba(0, 0, 0, 0.1);
-      padding: 2px 4px;
-      border-radius: 3px;
-    }
-
-    .message-content blockquote {
-      border-left: 4px solid #ddd;
-      margin: 0;
-      padding-left: 1em;
-      color: #666;
-    }
-
-    #bg-holder {
-      position: fixed;
-      inset: 0;
-      z-index: 0;
-      pointer-events: none;
-      background-size: cover !important;
-      background-repeat: no-repeat !important;
-      background-position: center center !important;
-    }
-  </style>
   <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/3.0.8/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.3/purify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script> -->
@@ -1013,23 +1000,11 @@
     let replyContext = null;
     let onlineUsers = [];
     let historyReplayDone = false;
-    let pendingJumpMsgId = null;
-    let lastTipMsgId = "";
-    let pendingSentMessages = [];
-    let glightboxInstance = null;
-    let lightboxInfoEl = null;
     const SYSTEM_PREFIX = "[SYSTEM]";
     const SYSTEM_ALERT_PREFIX = "[SYSTEM:ALERT]";
 
-    function generateLocalMessageId() {
-      if (window.crypto && typeof window.crypto.randomUUID === "function") {
-        return `local-${window.crypto.randomUUID()}`;
-      }
-      return `local-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    }
-
     function formatReplyPreview(text, maxLength = 40) {
-      const compact = stripReplyAndMsgMeta(text || "")
+      const compact = (text || "")
         .replace(/\r\n?/g, "\n")
         .replace(/```[\s\S]*?```/g, " [代码] ")
         .replace(/!\[[^\]]*\]\([^)]*\)/g, " [图片] ")
@@ -1044,15 +1019,6 @@
         return "[空消息]";
       }
       return compact;
-    }
-
-    function stripReplyAndMsgMeta(sourceText) {
-      let source = (sourceText || "").toString().replace(/\r\n?/g, "\n");
-      source = source
-        .replace(/^\s*\[\[msg:[A-Za-z0-9_-]+\]\]\s*\n?/i, "")
-        .replace(/^\s*\[\[reply:[^\]]*\]\]\s*\n?/i, "")
-        .replace(/^\s*reply:[^\n]*\n?/i, "");
-      return source.replace(/^\n+/, "");
     }
 
     function parseReplyTarget(rawMessage) {
@@ -1070,42 +1036,6 @@
       };
     }
 
-    function parseMessageMeta(rawMessage) {
-      const parsed = parseReplyTarget(rawMessage);
-      const content = (parsed.content || "").replace(/\r\n?/g, "\n");
-      const msgMatch = content.match(/^\s*\[\[msg:([A-Za-z0-9_-]+)\]\]\s*\n?/);
-      const msgId = msgMatch ? msgMatch[1] : "";
-      const contentWithoutMsg = msgMatch
-        ? content.slice(msgMatch[0].length).replace(/^\n+/, "")
-        : content;
-
-      return {
-        sender: parsed.sender,
-        content,
-        msgId,
-        contentWithoutMsg,
-      };
-    }
-
-    function buildMessageMarkdown(sender, content) {
-      const safeSender = sender || "消息";
-      const normalizedContent = (content || "").replace(/\r\n?/g, "\n");
-      const firstLine = normalizedContent.split("\n")[0] || "";
-      const secondLine = normalizedContent.split("\n")[1] || "";
-      const needsBlockBreak =
-        /^(\s*```|\s*~~~|\s{4,}\S)/.test(normalizedContent) ||
-        /^\s{0,3}#{1,6}\s/.test(firstLine) ||
-        /^\s{0,3}>\s?/.test(firstLine) ||
-        /^\s{0,3}(?:[-+*]|\d+\.)\s/.test(firstLine) ||
-        /^\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/.test(firstLine) ||
-        /^\s*\|.*\|\s*$/.test(firstLine) ||
-        (/^\s*[:\-| ]+\s*$/.test(secondLine) && firstLine.includes("|"));
-
-      return needsBlockBreak
-        ? `${safeSender}：\n${normalizedContent.replace(/^\n+/, "")}`
-        : `${safeSender}：${normalizedContent}`;
-    }
-
     function safeDecodeURIComponent(text) {
       try {
         return decodeURIComponent(text || "");
@@ -1117,32 +1047,15 @@
     function parseReplyMeta(content) {
       const normalized = (content || "").toString().replace(/\r\n?/g, "\n");
 
-      const tokenMatch = normalized.match(/^\s*\[\[reply:([^|\]]*)\|([^|\]]*)(?:\|([^\]]*))?\]\]\s*\n?/i);
+      const tokenMatch = normalized.match(/^\s*\[\[reply:([^|\]]*)\|([^\]]*)\]\]\s*\n?/i);
       if (tokenMatch) {
         const replyTo = safeDecodeURIComponent(tokenMatch[1]).trim();
         const preview = safeDecodeURIComponent(tokenMatch[2]).trim();
-        const targetMsgId = safeDecodeURIComponent(tokenMatch[3] || "").trim();
         const body = normalized.slice(tokenMatch[0].length).replace(/^\n+/, "");
         return {
           hasMeta: true,
           replyTo: replyTo || "消息",
           preview,
-          targetMsgId,
-          body,
-        };
-      }
-
-      const looseTokenMatch = normalized.match(/^\s*reply:([^|\n]*)\|([^|\n]*)(?:\|([^\n]*))?\s*\n?/i);
-      if (looseTokenMatch) {
-        const replyTo = safeDecodeURIComponent(looseTokenMatch[1]).trim();
-        const preview = safeDecodeURIComponent(looseTokenMatch[2]).trim();
-        const targetMsgId = safeDecodeURIComponent(looseTokenMatch[3] || "").trim();
-        const body = normalized.slice(looseTokenMatch[0].length).replace(/^\n+/, "");
-        return {
-          hasMeta: true,
-          replyTo: replyTo || "消息",
-          preview,
-          targetMsgId,
           body,
         };
       }
@@ -1159,7 +1072,6 @@
           hasMeta: true,
           replyTo: replyTo || "消息",
           preview,
-          targetMsgId: "",
           body,
         };
       }
@@ -1168,7 +1080,6 @@
         hasMeta: false,
         replyTo: "",
         preview: "",
-        targetMsgId: "",
         body: normalized,
       };
     }
@@ -1181,8 +1092,7 @@
       if (!username) {
         return false;
       }
-      const { sender, contentWithoutMsg } = parseMessageMeta(rawMessage);
-      const content = contentWithoutMsg;
+      const { sender, content } = parseReplyTarget(rawMessage);
       if (!content || !sender || sender === "消息" || sender === username) {
         return false;
       }
@@ -1201,7 +1111,7 @@
     }
 
     function renderMentionTip(rawMessage) {
-      const { sender, msgId } = parseMessageMeta(rawMessage);
+      const { sender } = parseReplyTarget(rawMessage);
       if (!sender || sender === "消息") {
         return;
       }
@@ -1210,24 +1120,19 @@
       if (!mentionAlertBar || !mentionAlertText) {
         return;
       }
-      mentionAlertText.textContent = `${sender} @了你`;
+      mentionAlertText.textContent = `${sender}@了你`;
       mentionAlertBar.classList.add("open");
-      lastTipMsgId = msgId || "";
-      mentionAlertBar.dataset.jumpMsgId = lastTipMsgId;
-      mentionAlertBar.style.cursor = lastTipMsgId ? "pointer" : "default";
-      sendNotification(`${sender} @了你`, getNotificationBody(rawMessage));
-      renderMentionPicker();
+      sendNotification(`${sender} @了你`, rawMessage);
       // var atUrl = `http://im.kndxhz.cn/at.html?name=${sender}` ;
       // window.open(atUrl,'newindow','height=300,width=300,top=0,left=0,toolbar=no,menubar=no,scrollbars=no,resizable=no,location=no,status=no');
-      refreshChatLayoutAfterFloatingChange();
+      scheduleSyncMessageBottomSpacing();
     }
 
     function isReplyingCurrentUser(rawMessage) {
       if (!username) {
         return false;
       }
-      const { sender, contentWithoutMsg } = parseMessageMeta(rawMessage);
-      const content = contentWithoutMsg;
+      const { sender, content } = parseReplyTarget(rawMessage);
       if (!content || !sender || sender === "消息" || sender === username) {
         return false;
       }
@@ -1260,7 +1165,7 @@
     }
 
     function renderReplyTip(rawMessage) {
-      const { sender, msgId } = parseMessageMeta(rawMessage);
+      const { sender } = parseReplyTarget(rawMessage);
       if (!sender || sender === "消息") {
         return;
       }
@@ -1269,23 +1174,12 @@
       if (!mentionAlertBar || !mentionAlertText) {
         return;
       }
-      mentionAlertText.textContent = `${sender} 回复了你`;
+      mentionAlertText.textContent = `${sender}回复了你`;
       mentionAlertBar.classList.add("open");
-      lastTipMsgId = msgId || "";
-      mentionAlertBar.dataset.jumpMsgId = lastTipMsgId;
-      mentionAlertBar.style.cursor = lastTipMsgId ? "pointer" : "default";
-      sendNotification(`${sender} 回复了你`, getNotificationBody(rawMessage));
-      renderMentionPicker();
+      sendNotification(`${sender}回复了你`, rawMessage);
       // var replyUrl = `http://im.kndxhz.cn/reply.html?name=${sender}` ;
       // window.open(replyUrl,'newindow','height=300,width=300,top=0,left=0,toolbar=no,menubar=no,scrollbars=no,resizable=no,location=no,status=no');
-      refreshChatLayoutAfterFloatingChange();
-    }
-
-    function getNotificationBody(rawMessage) {
-      const { contentWithoutMsg } = parseMessageMeta(rawMessage);
-      const replyMeta = parseReplyMeta(contentWithoutMsg || "");
-      const body = replyMeta.hasMeta ? replyMeta.body : contentWithoutMsg;
-      return (body || "").trim();
+      scheduleSyncMessageBottomSpacing();
     }
 
     function sendNotification(title, message) {
@@ -1308,99 +1202,8 @@
       const mentionAlertBar = document.getElementById("mentionAlertBar");
       if (mentionAlertBar) {
         mentionAlertBar.classList.remove("open");
-        mentionAlertBar.dataset.jumpMsgId = "";
-        mentionAlertBar.style.cursor = "default";
       }
-      renderMentionPicker();
       scheduleSyncMessageBottomSpacing();
-    }
-
-    function flashMessageElement(el) {
-      if (!el) {
-        return;
-      }
-      el.classList.add("message-jump-highlight");
-      setTimeout(() => {
-        el.classList.remove("message-jump-highlight");
-      }, 2200);
-    }
-
-    async function jumpToMessageById(msgId, allowFetch = true) {
-      if (!msgId) {
-        return false;
-      }
-
-      const target = document.querySelector(
-        `[data-msg-id="${msgId}"], [data-server-msg-id="${msgId}"]`,
-      );
-      if (target) {
-        shouldAutoFollow = true;
-        target.scrollIntoView({ behavior: "smooth", block: "center" });
-        flashMessageElement(target);
-        return true;
-      }
-
-      if (!allowFetch) {
-        return false;
-      }
-
-      try {
-        const response = await fetch(`http://im.kndxhz.cn:5000/get_message_by_id/${encodeURIComponent(msgId)}`);
-        if (!response.ok) {
-          return false;
-        }
-        const data = await response.json();
-        if (!data || !data.found || !data.message) {
-          return false;
-        }
-        renderMessage(data.message, "received");
-        return jumpToMessageById(msgId, false);
-      } catch (error) {
-        console.warn("跳转消息失败", error);
-        return false;
-      }
-    }
-
-    function hydratePendingSentMessage(rawMessage) {
-      const parsedMessageMeta = parseMessageMeta(rawMessage);
-      if (!parsedMessageMeta.sender || parsedMessageMeta.sender !== username) {
-        return false;
-      }
-
-      const pendingIndex = pendingSentMessages.findIndex(
-        (item) => item.content === parsedMessageMeta.contentWithoutMsg,
-      );
-      if (pendingIndex < 0) {
-        return false;
-      }
-
-      const pendingItem = pendingSentMessages[pendingIndex];
-      pendingSentMessages.splice(pendingIndex, 1);
-
-      if (pendingItem.element) {
-        if (parsedMessageMeta.msgId) {
-          pendingItem.element.dataset.serverMsgId = parsedMessageMeta.msgId;
-          pendingItem.element.id = `msg-${parsedMessageMeta.msgId}`;
-          if (!pendingItem.element.dataset.msgId) {
-            pendingItem.element.dataset.msgId = parsedMessageMeta.msgId;
-          }
-        }
-        pendingItem.element.classList.remove("pending-sent-message");
-        pendingItem.element.removeAttribute("data-pending-message");
-      }
-
-      return true;
-    }
-
-    async function applyJumpFromUrl() {
-      if (!pendingJumpMsgId) {
-        return;
-      }
-      const msgId = pendingJumpMsgId;
-      const ok = await jumpToMessageById(msgId, true);
-      if (ok) {
-        pendingJumpMsgId = null;
-      }
     }
 
     function isValidUsername(name) {
@@ -1461,7 +1264,6 @@
           picker.classList.remove("open");
           picker.innerHTML = "";
         }
-        refreshChatLayoutAfterFloatingChange();
         return;
       }
 
@@ -1470,12 +1272,12 @@
       const keyword = state.keyword.toLowerCase();
       const candidates = onlineUsers
         .filter((name) => name && name !== username)
-        .filter((name) => !keyword || name.toLowerCase().includes(keyword));
+        .filter((name) => !keyword || name.toLowerCase().includes(keyword))
+        .slice(0, 10);
 
       if (!candidates.length) {
         picker.classList.remove("open");
         picker.innerHTML = "";
-        refreshChatLayoutAfterFloatingChange();
         return;
       }
 
@@ -1486,8 +1288,6 @@
         )
         .join("");
       picker.classList.add("open");
-      picker.scrollLeft = 0;
-      refreshChatLayoutAfterFloatingChange();
 
       picker.querySelectorAll(".mention-option").forEach((button) => {
         button.addEventListener("click", () => {
@@ -1511,31 +1311,21 @@
       const newCaret = (before + mentionText).length;
       messageInput.focus();
       messageInput.setSelectionRange(newCaret, newCaret);
+      scheduleSyncMessageBottomSpacing();
       if (picker) {
         picker.classList.remove("open");
         picker.innerHTML = "";
       }
-      refreshChatLayoutAfterFloatingChange();
     }
 
-    function setReplyContextFromMessage(rawMessage, messageType, messageElement = null) {
+    function setReplyContextFromMessage(rawMessage, messageType) {
       if (messageType === "system") {
         return;
       }
-      const { sender, contentWithoutMsg, msgId } = parseMessageMeta(rawMessage);
-      const parsedReplyMeta = parseReplyMeta(contentWithoutMsg || "");
-      const previewSource = parsedReplyMeta.hasMeta
-        ? parsedReplyMeta.body || parsedReplyMeta.preview || ""
-        : contentWithoutMsg;
-      const fallbackTargetMsgId = parsedReplyMeta.hasMeta
-        ? parsedReplyMeta.targetMsgId || ""
-        : "";
-      const localMsgId = messageElement?.dataset?.msgId || "";
-      const serverMsgId = messageElement?.dataset?.serverMsgId || msgId || "";
+      const { sender, content } = parseReplyTarget(rawMessage);
       replyContext = {
         sender: sender || "消息",
-        preview: formatReplyPreview(previewSource),
-        msgId: localMsgId || serverMsgId || fallbackTargetMsgId || "",
+        preview: formatReplyPreview(content),
       };
       const replyBar = document.getElementById("replyBar");
       const replyText = document.getElementById("replyText");
@@ -1548,7 +1338,7 @@
       if (messageInput) {
         messageInput.focus();
       }
-      refreshChatLayoutAfterFloatingChange();
+      scheduleSyncMessageBottomSpacing();
     }
 
     function clearReplyContext() {
@@ -1557,7 +1347,7 @@
       if (replyBar) {
         replyBar.classList.remove("open");
       }
-      refreshChatLayoutAfterFloatingChange();
+      scheduleSyncMessageBottomSpacing();
     }
 
     function isNearBottom(element, threshold = 90) {
@@ -1608,19 +1398,6 @@
       const newHeight = Math.min(textarea.scrollHeight, 150);
       textarea.style.height = newHeight + "px";
       scheduleSyncMessageBottomSpacing();
-    }
-
-    function refreshChatLayoutAfterFloatingChange() {
-      requestAnimationFrame(() => {
-        syncMessageBottomSpacing();
-        scrollMessagesToBottom();
-        updateScrollToBottomButton();
-        requestAnimationFrame(() => {
-          syncMessageBottomSpacing();
-          scrollMessagesToBottom();
-          updateScrollToBottomButton();
-        });
-      });
     }
 
     function syncMessageBottomSpacing() {
@@ -1688,17 +1465,39 @@
       });
     }
 
+    // 修正后的marked配置
+    marked.setOptions({
+      breaks: false,
+      highlight: function (code, lang) {
+        // 自动检测语言
+        const language = hljs.getLanguage(lang) ? lang : "plaintext";
+
+        try {
+          return hljs.highlight(code, {
+            language,
+            ignoreIllegals: true,
+          }).value;
+        } catch (e) {
+          return hljs.highlight(code, {
+            language: "plaintext",
+            ignoreIllegals: true,
+          }).value;
+        }
+      },
+      langPrefix: "hljs language-",
+    });
+
     // 创建自定义渲染器
     const renderer = new marked.Renderer();
 
     // 自定义图片渲染方法
     renderer.image = function (href, title, text) {
-      const safeHref = (href || "").toString();
-      const safeTitle = (title || "").toString();
-      const safeText = (text || "").toString();
+      // Lightbox 需要每个图片被包裹在 <a> 标签中，并带有 data-lightbox 属性
       return `
-          <img src="${safeHref}" alt="${safeText}" title="${safeTitle}">
-        `;
+                <a href="${href}" data-lightbox="image" data-title="${title || ""}">
+                    <img src="${href}" alt="${text || ""}">
+                </a>
+            `;
     };
 
     renderer.link = function (href, title, text) {
@@ -1739,109 +1538,21 @@
     };
 
     // 设置其他自定义渲染方法（如代码块）
-    renderer.code = function (code, infostring) {
+    renderer.code = function (code, infostring, escaped) {
       const lang = (infostring || "").match(/\S*/)[0];
-      const safeCode = String(code || "")
+      const safeCode = (code || "")
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
       return `
                 <div class="code-block-wrapper">
-                    <pre><code class="hljs ${lang ? `language-${lang}` : ""}">${safeCode}</code></pre>
+                    <pre><code class="hljs ${lang}">${safeCode}</code></pre>
                 </div>
             `;
     };
 
-    marked.setOptions({
-      breaks: false,
-      langPrefix: "hljs language-",
-      renderer,
-    });
-
-    function ensureLightboxInfoEl() {
-      if (lightboxInfoEl && document.body.contains(lightboxInfoEl)) {
-        return lightboxInfoEl;
-      }
-
-      lightboxInfoEl = document.createElement("div");
-      lightboxInfoEl.className = "viewer-zoom-indicator";
-      lightboxInfoEl.setAttribute("aria-live", "polite");
-      document.body.appendChild(lightboxInfoEl);
-      return lightboxInfoEl;
-    }
-
-    function updateLightboxInfo(text, persist = false) {
-      const el = ensureLightboxInfoEl();
-      if (!el) {
-        return;
-      }
-      el.textContent = text;
-      el.classList.add("visible");
-      clearTimeout(el.hideTimer);
-      if (!persist) {
-        el.hideTimer = setTimeout(() => {
-          el.classList.remove("visible");
-        }, 1200);
-      }
-    }
-
-    function clearLightboxInfo() {
-      if (!lightboxInfoEl) {
-        return;
-      }
-      clearTimeout(lightboxInfoEl.hideTimer);
-      lightboxInfoEl.classList.remove("visible");
-      lightboxInfoEl.textContent = "";
-    }
-
-    function formatViewerRatio() {
-      const ratio = glightboxInstance?.imageData?.ratio || 1;
-      return `倍率 ${(ratio * 100).toFixed(0)}%`;
-    }
-
-    function initLightbox() {
-      const messagesDiv = document.getElementById("messages");
-      if (!messagesDiv || typeof Viewer !== "function") {
-        return;
-      }
-
-      if (glightboxInstance && typeof glightboxInstance.update === "function") {
-        glightboxInstance.update();
-        return;
-      }
-
-      if (glightboxInstance && typeof glightboxInstance.destroy === "function") {
-        glightboxInstance.destroy();
-      }
-
-      glightboxInstance = new Viewer(messagesDiv, {
-        container: document.body,
-        url: "src",
-        navbar: false,
-        title: false,
-        toolbar: false,
-        button: true,
-        keyboard: true,
-        focus: false,
-        movable: true,
-        rotatable: false,
-        scalable: false,
-        zoomable: true,
-        zoomOnTouch: true,
-        zoomOnWheel: true,
-        toggleOnDblclick: true,
-        tooltip: false,
-        hidden() {
-          clearLightboxInfo();
-        },
-        viewed() {
-          updateLightboxInfo(formatViewerRatio(), true);
-        },
-        zoomed() {
-          updateLightboxInfo(formatViewerRatio(), true);
-        },
-      });
-    }
+    // 应用自定义渲染器
+    marked.setOptions({ renderer });
 
     // 设置 cookie
     function setCookie(name, value, days) {
@@ -1978,59 +1689,9 @@
       if (!panel) {
         return;
       }
-      const shouldOpen = !panel.classList.contains("open");
-      closeFloatingPanels(panelId);
-      if (shouldOpen) {
-        panel.classList.add("open");
-      } else {
-        panel.classList.remove("open");
-      }
+      panel.classList.toggle("open");
       scheduleSyncMessageBottomSpacing();
     }
-
-    function closeFloatingPanels(exceptPanelId = "") {
-      document.querySelectorAll(".floating-panel.open").forEach((panel) => {
-        if (panel.id !== exceptPanelId) {
-          panel.classList.remove("open");
-        }
-      });
-    }
-
-    function closeMentionAlertByKeyboard() {
-      const mentionAlertBar = document.getElementById("mentionAlertBar");
-      if (mentionAlertBar && mentionAlertBar.classList.contains("open")) {
-        hideMentionAlert();
-        return true;
-      }
-      return false;
-    }
-
-    function closeReplyContextByKeyboard() {
-      const replyBar = document.getElementById("replyBar");
-      if (replyBar && replyBar.classList.contains("open")) {
-        clearReplyContext();
-        return true;
-      }
-      return false;
-    }
-
-    document.addEventListener(
-      "keydown",
-      (event) => {
-        if (event.key !== "Escape") {
-          return;
-        }
-        const closedMention = closeMentionAlertByKeyboard();
-        const closedReply = closeReplyContextByKeyboard();
-        closeFloatingPanels();
-        if (closedMention || closedReply) {
-          event.preventDefault();
-          event.stopPropagation();
-        }
-      },
-      true,
-    );
-
     // 页面加载时要求用户输入名称
     window.onload = () => {
       console.log(
@@ -2061,14 +1722,9 @@
         return;
       }
       connectWebSocket();
-      const queryJumpMsgId = new URLSearchParams(window.location.search).get("jump");
-      if (queryJumpMsgId) {
-        pendingJumpMsgId = queryJumpMsgId;
-      }
       fetchFileList();
       setInterval(fetchFileList, 3000);
       setBackgroundImage();
-      initLightbox();
       scheduleSyncMessageBottomSpacing();
 
       const messagesDiv = document.getElementById("messages");
@@ -2096,38 +1752,6 @@
         panelResizeObserver.observe(chatInputPanel);
       }
 
-      const mentionAlertBarEl = document.getElementById("mentionAlertBar");
-      const replyBarEl = document.getElementById("replyBar");
-      const mentionPickerEl = document.getElementById("mentionPicker");
-      if (mentionPickerEl && !mentionPickerEl.dataset.wheelBound) {
-        mentionPickerEl.addEventListener(
-          "wheel",
-          (event) => {
-            const isVerticalScroll = Math.abs(event.deltaY) >= Math.abs(event.deltaX);
-            if (isVerticalScroll) {
-              mentionPickerEl.scrollLeft += event.deltaY;
-              event.preventDefault();
-            }
-          },
-          { passive: false },
-        );
-        mentionPickerEl.dataset.wheelBound = "1";
-      }
-      if ("MutationObserver" in window) {
-        [mentionAlertBarEl, replyBarEl, mentionPickerEl].forEach((el) => {
-          if (!el) {
-            return;
-          }
-          const observer = new MutationObserver(() => {
-            refreshChatLayoutAfterFloatingChange();
-          });
-          observer.observe(el, {
-            attributes: true,
-            attributeFilter: ["class", "style"],
-          });
-        });
-      }
-
       if (Notification.permission !== "granted") {
         Notification.requestPermission().then((permission) => {
           if (permission === "granted") {
@@ -2138,21 +1762,6 @@
         });
       } else {
         console.log("通知权限已授予");
-      }
-
-      const mentionAlertBar = document.getElementById("mentionAlertBar");
-      if (mentionAlertBar) {
-        mentionAlertBar.addEventListener("click", async (event) => {
-          const closeBtn = event.target.closest(".mention-close-btn");
-          if (closeBtn) {
-            return;
-          }
-          const msgId = mentionAlertBar.dataset.jumpMsgId || lastTipMsgId;
-          if (!msgId) {
-            return;
-          }
-          await jumpToMessageById(msgId, true);
-        });
       }
       // 监听输入框的回车事件
       const messageInput = document.getElementById("messageInput");
@@ -2239,7 +1848,6 @@
           const systemMessage = message.slice(SYSTEM_PREFIX.length);
           if (systemMessage === "----以上是历史记录----") {
             historyReplayDone = true;
-            applyJumpFromUrl();
             return;
           }
           renderMessage(systemMessage, "system");
@@ -2275,10 +1883,6 @@
         // 发送通知
         // sendNotification("新消息", message);
 
-        if (hydratePendingSentMessage(message)) {
-          return;
-        }
-
         const tipType = dispatchMentionReplyTips(message);
 
         // 渲染普通消息
@@ -2288,10 +1892,6 @@
           scrollMessagesToBottom(true);
         }
       };
-
-      window.addEventListener("load", () => {
-        scheduleSyncMessageBottomSpacing();
-      });
 
       ws.onclose = () => {
         //alert("你已断开连接！正在尝试重新连接...");
@@ -2336,16 +1936,11 @@
               const systemMessage = message.slice(SYSTEM_PREFIX.length);
               if (systemMessage === "----以上是历史记录----") {
                 historyReplayDone = true;
-                applyJumpFromUrl();
                 return;
               }
               renderMessage(systemMessage, "system");
               return;
             }
-            if (hydratePendingSentMessage(message)) {
-              return;
-            }
-
             const tipType = dispatchMentionReplyTips(message);
             renderMessage(message, "received");
             if (tipType === "reply") {
@@ -2413,14 +2008,15 @@
           if (replyContext) {
             const replySender = encodeURIComponent(replyContext.sender || "消息");
             const replyPreview = encodeURIComponent(replyContext.preview || "");
-            const replyMsgId = encodeURIComponent(replyContext.msgId || "");
-            const replyMetaToken = `[[reply:${replySender}|${replyPreview}|${replyMsgId}]]`;
+            const replyMetaToken = `[[reply:${replySender}|${replyPreview}]]`;
             messageWithUsername = `${replyMetaToken}\n${formattedMessage}`;
           }
           ws.send(messageWithUsername);
-          renderMessage(`${username}：${messageWithUsername}`, "sent", message, {
-            pending: true,
-          });
+          renderMessage(
+            `${username}：` + messageWithUsername,
+            "sent",
+            message,
+          );
           clearReplyContext();
         }
 
@@ -2445,7 +2041,7 @@
       scrollMessagesToBottom(true);
     }
 
-    function renderMessage(message, type, originalMessage = "", options = {}) {
+    function renderMessage(message, type, originalMessage = "") {
       const messagesDiv = document.getElementById("messages");
       const container = document.createElement("div");
       const rawMessageForReply = message;
@@ -2465,68 +2061,35 @@
         type !== "received" || shouldAutoFollow || isNearBottom(messagesDiv);
 
       // 预处理消息内容（添加安全过滤）
-      const normalizedMessage = (message || "").replace(/\r\n?/g, "\n");
-
-      const parsedMessageMeta = parseMessageMeta(normalizedMessage);
-      const serverMsgId = parsedMessageMeta.msgId || "";
-      const localMsgId = options.pending ? generateLocalMessageId() : "";
-      const currentMsgId = serverMsgId || localMsgId;
+      const normalizedMessage = message
+        .replace(/```(\s*\n*)/g, "```\n")
+        .replace(/(\n*)```/g, "\n```");
 
       let replyHeaderText = "";
-      let replyTargetMsgId = "";
-      let messageForMarkdown =
-        parsedMessageMeta.sender === "消息"
-          ? normalizedMessage
-          : buildMessageMarkdown(
-            parsedMessageMeta.sender,
-            parsedMessageMeta.contentWithoutMsg,
-          );
-      const parsedTarget = parseReplyTarget(
-        parsedMessageMeta.sender === "消息"
-          ? normalizedMessage
-          : buildMessageMarkdown(
-            parsedMessageMeta.sender,
-            parsedMessageMeta.contentWithoutMsg,
-          ),
-      );
+      let messageForMarkdown = normalizedMessage;
+      const parsedTarget = parseReplyTarget(normalizedMessage);
       if (parsedTarget.sender !== "消息") {
         const replyMeta = parseReplyMeta(parsedTarget.content || "");
         if (replyMeta.hasMeta) {
           const headerPreview = replyMeta.preview || "[空消息]";
           replyHeaderText = `回复 ${replyMeta.replyTo}：${headerPreview}`;
-          replyTargetMsgId = replyMeta.targetMsgId || "";
-          messageForMarkdown = buildMessageMarkdown(
-            parsedTarget.sender,
-            replyMeta.body || "",
-          );
+          messageForMarkdown = `${parsedTarget.sender}：${replyMeta.body || ""}`;
         }
       }
 
       const messageElement = document.createElement("div");
       messageElement.className = "message-content";
-      if (currentMsgId) {
-        messageElement.dataset.msgId = currentMsgId;
-        messageElement.id = `msg-${currentMsgId}`;
-      }
-      if (serverMsgId) {
-        messageElement.dataset.serverMsgId = serverMsgId;
-      }
-      if (options.pending) {
-        messageElement.dataset.pendingMessage = "true";
-        messageElement.classList.add("pending-sent-message");
-      }
 
+      // 启用 marked 的 breaks 选项
       marked.setOptions({
-        breaks: true,
-        langPrefix: "hljs language-",
-        renderer,
+        breaks: true, // 保留换行符
       });
 
       try {
         // 先解析Markdown，再做HTML安全过滤，避免链接/回复被错误截断
         const parsedHtml = marked.parse(messageForMarkdown);
         const sanitizedHtml = DOMPurify.sanitize(parsedHtml, {
-          ADD_ATTR: ["target", "rel", "data-title", "data-gallery"],
+          ADD_ATTR: ["target", "rel", "data-lightbox", "data-title"],
         });
         messageElement.innerHTML = sanitizedHtml;
 
@@ -2549,59 +2112,51 @@
         const replyHeader = document.createElement("div");
         replyHeader.className = "reply-meta-line";
         replyHeader.textContent = replyHeaderText;
-        if (replyTargetMsgId) {
-          replyHeader.dataset.targetMsgId = replyTargetMsgId;
-          replyHeader.style.cursor = "pointer";
-          replyHeader.title = "点击跳转到被回复消息";
-          replyHeader.addEventListener("click", async () => {
-            await jumpToMessageById(replyTargetMsgId, true);
-          });
-        }
         messageElement.prepend(replyHeader);
       }
 
       // 添加代码块功能（容错：任意高亮失败不影响消息主体展示）
       try {
-        messageElement.querySelectorAll("pre code").forEach((block) => {
-          try {
-            hljs.highlightElement(block);
-          } catch (e) {
-            console.warn("代码高亮失败，已降级显示原文", e);
-          }
-          const pre = block.parentElement;
-          if (!pre) {
-            return;
-          }
-          pre.style.position = "relative";
-          if (pre.querySelector(".copy-button")) {
-            return;
-          }
-
-          const copyButton = document.createElement("button");
-          copyButton.className = "copy-button";
-          copyButton.innerHTML = "📋";
-          copyButton.onclick = () => {
+        if (!originalMessage.includes("回复")) {
+          messageElement.querySelectorAll("pre code").forEach((block) => {
             try {
-              navigator.clipboard.writeText(block.textContent).then(() => {
+              hljs.highlightElement(block);
+            } catch (e) {
+              console.warn("代码高亮失败，已降级显示原文", e);
+            }
+
+            const pre = block.parentElement;
+            if (!pre) {
+              return;
+            }
+            pre.style.position = "relative";
+
+            const copyButton = document.createElement("button");
+            copyButton.className = "copy-button";
+            copyButton.innerHTML = "📋";
+            copyButton.onclick = () => {
+              try {
+                navigator.clipboard.writeText(block.textContent).then(() => {
+                  copyButton.innerHTML = "✓";
+                  setTimeout(() => (copyButton.innerHTML = "📋"), 1500);
+                });
+              } catch (e) {
+                const textArea = document.createElement("textarea");
+                textArea.value = block.textContent;
+                // 使text area不在viewport，同时设置不可见
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                document.execCommand("copy");
+                textArea.remove();
+
                 copyButton.innerHTML = "✓";
                 setTimeout(() => (copyButton.innerHTML = "📋"), 1500);
-              });
-            } catch (e) {
-              const textArea = document.createElement("textarea");
-              textArea.value = block.textContent;
-              // 使text area不在viewport，同时设置不可见
-              document.body.appendChild(textArea);
-              textArea.focus();
-              textArea.select();
-              document.execCommand("copy");
-              textArea.remove();
-
-              copyButton.innerHTML = "✓";
-              setTimeout(() => (copyButton.innerHTML = "📋"), 1500);
-            }
-          };
-          pre.appendChild(copyButton);
-        });
+              }
+            };
+            pre.appendChild(copyButton);
+          });
+        }
       } catch (e) {
         console.error("消息后处理失败，但消息主体已保留显示", e);
       }
@@ -2618,23 +2173,19 @@
         messageElement.title = "右键回复此消息";
         messageElement.addEventListener("contextmenu", (event) => {
           event.preventDefault();
-          setReplyContextFromMessage(rawMessageForReply, type, messageElement);
+          setReplyContextFromMessage(rawMessageForReply, type);
         });
       }
       if (type === "system") {
         messageElement.style.borderLeft = "3px solid #f59e0b";
       }
+      messageElement.querySelectorAll("pre").forEach((pre) => {
+        pre.style.whiteSpace = "pre-wrap";
+        pre.style.backgroundColor = "rgba(0, 0, 0, 0.05)";
+      });
+
       container.appendChild(messageElement);
       messagesDiv.appendChild(container);
-
-      initLightbox();
-
-      if (options.pending) {
-        pendingSentMessages.push({
-          content: parsedMessageMeta.contentWithoutMsg,
-          element: messageElement,
-        });
-      }
 
       scheduleSyncMessageBottomSpacing();
       if (shouldStickToBottom) {
@@ -2694,16 +2245,20 @@
             let downloadUrl = `http://im.kndxhz.cn/img/${name}`;
             let message = `![img](${downloadUrl})`;
             ws.send(message);
-            renderMessage(`${username}：${message}`, "sent", `${username}：${message}`, {
-              pending: true,
-            });
+            renderMessage(
+              `${username}：${message}`,
+              "sent",
+              `${username}：${message}`,
+            );
           } else {
             let downloadUrl = `http://im.kndxhz.cn:5000/download/${name}`;
             let message = `发送了文件 ([${name}](${downloadUrl}))`;
             ws.send(message);
-            renderMessage(`${username}：${message}`, "sent", `${username}：${message}`, {
-              pending: true,
-            });
+            renderMessage(
+              `${username}：${message}`,
+              "sent",
+              `${username}：${message}`,
+            );
           }
 
           alert(data.message || "文件上传成功！");
