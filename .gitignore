@@ -2,3 +2,4 @@ python-3.13.2-embed-amd64
 强制结束所有进程.bat
 1.启动后端.bat
 2.启动前端.bat
+3.测试并清理.bat
