@@ -741,9 +741,9 @@ def run_flask_app():
 
 if __name__ == "__main__":
     try:
-        os.remove(LOG_FILE)
+        os.remove(DB_FILE)
     except FileNotFoundError:
-        pass
+        log_event(logging.INFO, "数据库文件不存在，无需删除")
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
     app.logger.setLevel(logging.WARNING)
     init_db()
