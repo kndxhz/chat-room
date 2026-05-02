@@ -13,3 +13,6 @@ __pycache__
 chat.db
 chat-room.log
 .env
+sandbox_tmp/
+sandbox_tmp_runtime/
+tests/.tmp/

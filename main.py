@@ -1,10 +1,30 @@
 import asyncio
+import os
+import sys
+from pathlib import Path
+
+
+def _bootstrap_local_site_packages():
+    project_root = Path(__file__).resolve().parent
+    bundled_python = project_root / "python-3.13.2-embed-amd64"
+    candidate_paths = [
+        bundled_python,
+        bundled_python / "Lib" / "site-packages",
+        bundled_python / "site-packages",
+    ]
+    for candidate in candidate_paths:
+        candidate_str = str(candidate)
+        if candidate.exists() and candidate_str not in sys.path:
+            sys.path.append(candidate_str)
+
+
+_bootstrap_local_site_packages()
+
 import websockets
 import socket
 import requests
 from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
-import os
 import datetime
 import random
 import time
@@ -322,6 +342,28 @@ def get_message_by_msg_id(msg_id):
         "sender": row[2],
         "created_at": row[3],
     }
+
+
+def clear_history_messages():
+    with db_lock:
+        conn = sqlite3.connect(DB_FILE)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM messages")
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def clear_connections_table():
+    with db_lock:
+        conn = sqlite3.connect(DB_FILE)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM connections")
+            conn.commit()
+        finally:
+            conn.close()
 
 
 @app.route("/upload", methods=["POST"])
@@ -728,6 +770,8 @@ async def handler(websocket):
                 await send_system_message(websocket, "当前在线的客户端:\n" + content)
             elif message == "/clear":
                 log_event(logging.INFO, "清空聊天记录", ip=websocket.remote_address[0])
+                clear_history_messages()
+                await send_system_message(websocket, "已清空聊天记录")
             else:
                 name = getattr(websocket, "name", websocket.remote_address[0])
                 _, formatted_message = save_message(name, message)

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
@@ -32,6 +34,8 @@ class FakeWebSocket:
         self.name = ip
         self.sent: list[str] = []
         self.closed = False
+        self.close_code = None
+        self.close_reason = None
         self._incoming = list(incoming or [])
 
     def __aiter__(self):
@@ -45,13 +49,27 @@ class FakeWebSocket:
     async def send(self, message):
         self.sent.append(message)
 
-    async def close(self):
+    async def close(self, code=None, reason=None):
         self.closed = True
+        self.close_code = code
+        self.close_reason = reason
+
+
+@pytest.fixture()
+def tmp_path():
+    base_dir = Path.home() / ".codex" / "memories" / "chat-room-test-tmp"
+    base_dir.mkdir(parents=True, exist_ok=True)
+    path = base_dir / uuid4().hex
+    path.mkdir(parents=True, exist_ok=True)
+    yield path
+    shutil.rmtree(path, ignore_errors=True)
 
 
 @pytest.fixture()
 def main_env(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("TMP", str(tmp_path))
+    monkeypatch.setenv("TEMP", str(tmp_path))
 
     upload_dir = tmp_path / "files"
     image_dir = tmp_path / "html" / "img"
