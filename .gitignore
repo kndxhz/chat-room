@@ -3,3 +3,12 @@ python-3.13.2-embed-amd64
 1.启动后端.bat
 2.启动前端.bat
 3.测试并清理.bat
+files
+html/img
+connect.txt
+history.txt
+key.txt
+ban.txt
+__pycache__
+chat.db
+chat-room.log
