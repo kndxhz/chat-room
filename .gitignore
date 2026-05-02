@@ -12,3 +12,4 @@ ban.txt
 __pycache__
 chat.db
 chat-room.log
+.env
