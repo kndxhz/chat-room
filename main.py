@@ -16,28 +16,33 @@ import re
 import sqlite3
 import threading
 from urllib.parse import unquote
+from dotenv import load_dotenv
 
-connected_clients = set()
-UPLOAD_FOLDER = "./files"
-IMAGE_FOLDER = "./html/img"
-CONNECT_FILE = "./connect.txt"
-HISTORY_FILE = "./history.txt"
-KEY_FILE = "./key.txt"
-BAN_FILE = "./ban.txt"
-LOG_FILE = "./chat-room.log"
-DB_FILE = "./chat.db"
+load_dotenv()
+
+UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", "./files")
+IMAGE_FOLDER = os.environ.get("IMAGE_FOLDER", "./html/img")
+CONNECT_FILE = os.environ.get("CONNECT_FILE", "./connect.txt")
+HISTORY_FILE = os.environ.get("HISTORY_FILE", "./history.txt")
+KEY_FILE = os.environ.get("KEY_FILE", "./key.txt")
+BAN_FILE = os.environ.get("BAN_FILE", "./ban.txt")
+LOG_FILE = os.environ.get("LOG_FILE", "./chat-room.log")
+DB_FILE = os.environ.get("DB_FILE", "./chat.db")
 
 
-CLOUDFLARE_API_TOKEN = "CLOUDFLARE_API_TOKEN"
-ZONE_ID = "ZONE_ID"  # 替换为你的 Zone ID
-RECORD_ID = "RECORD_ID"  # 替换为你的 Record ID
-DOMAIN = "DOMAIN"
+CLOUDFLARE_API_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "")
+ZONE_ID = os.environ.get("ZONE_ID", "")
+RECORD_ID = os.environ.get("RECORD_ID", "")
+DOMAIN = os.environ.get("DOMAIN", "")
 LAST_ALT_PRESS_TIME = 0
-DOUBLE_CLICK_THRESHOLD = 0.3  # 双击时间阈值（秒）
+DOUBLE_CLICK_THRESHOLD = 0.5
 
 BING_INFO = ""
-SYSTEM_PREFIX = "[SYSTEM]"
-SYSTEM_ALERT_PREFIX = "[SYSTEM:ALERT]"
+SYSTEM_PREFIX = os.environ.get("SYSTEM_PREFIX", "[SYSTEM]")  # 系统消息前缀
+SYSTEM_ALERT_PREFIX = os.environ.get("SYSTEM_ALERT_PREFIX", "[ALERT]")  # 系统警告前缀
+
+connected_clients = set()
+
 
 app = Flask(__name__)
 CORS(app)  # 允许跨域
@@ -299,28 +304,6 @@ def get_message_by_msg_id(msg_id):
         "sender": row[2],
         "created_at": row[3],
     }
-
-
-def clear_history_messages():
-    with db_lock:
-        conn = sqlite3.connect(DB_FILE)
-        try:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM messages")
-            conn.commit()
-        finally:
-            conn.close()
-
-
-def clear_connections_table():
-    with db_lock:
-        conn = sqlite3.connect(DB_FILE)
-        try:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM connections")
-            conn.commit()
-        finally:
-            conn.close()
 
 
 @app.route("/upload", methods=["POST"])
@@ -674,7 +657,6 @@ async def handler(websocket):
                 await send_system_message(websocket, "当前在线的客户端:\n" + content)
             elif message == "/clear":
                 log_event(logging.INFO, "清空聊天记录", ip=websocket.remote_address[0])
-                clear_history_messages()
             else:
                 name = getattr(websocket, "name", websocket.remote_address[0])
                 _, formatted_message = save_message(name, message)
@@ -758,16 +740,23 @@ def run_flask_app():
 
 
 if __name__ == "__main__":
+    try:
+        os.remove(LOG_FILE)
+    except FileNotFoundError:
+        pass
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
     app.logger.setLevel(logging.WARNING)
     init_db()
-    clear_connections_table()
-    clear_history_messages()
 
-    files_to_clear = [KEY_FILE, LOG_FILE]
-    for file_path in files_to_clear:
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write("")
+    create_files = (CONNECT_FILE, HISTORY_FILE, KEY_FILE, BAN_FILE)
+    for file in create_files:
+        if not os.path.exists(file):
+            with open(file, "w", encoding="utf-8") as f:
+                pass
+    create_folders = (UPLOAD_FOLDER, IMAGE_FOLDER)
+    for folder in create_folders:
+        os.makedirs(folder, exist_ok=True)
+
     key = str(random.randint(10000, 99999))
     with open(KEY_FILE, "w", encoding="utf-8") as f:
         f.write(key)
