@@ -2249,6 +2249,30 @@
     function connectWebSocket() {
       ws = new WebSocket("ws://im.kndxhz.cn:8765");
       historyReplayDone = false;
+      let shouldReconnect = true;
+
+      function handleSystemAlert(message) {
+        const alertText = message.slice(SYSTEM_ALERT_PREFIX.length);
+        shouldReconnect = false;
+        if (ws) {
+          ws.onclose = null;
+        }
+        alert(alertText);
+        if (alertText === "请重新设定昵称") {
+          deleteCookie("username");
+        }
+        location.reload();
+      }
+
+      function handleForcedDisconnect(reasonText) {
+        const text = (reasonText || "").trim() || "你已被踢出";
+        shouldReconnect = false;
+        if (text === "请重新设定昵称") {
+          deleteCookie("username");
+        }
+        alert(text);
+        location.reload();
+      }
 
       ws.onopen = () => {
         console.log("已连接到 WebSocket 服务器");
@@ -2261,9 +2285,7 @@
           typeof message === "string" &&
           message.startsWith(SYSTEM_ALERT_PREFIX)
         ) {
-          alert(message.slice(SYSTEM_ALERT_PREFIX.length));
-          deleteCookie("username");
-          location.reload();
+          handleSystemAlert(message);
           return;
         }
         if (
@@ -2279,26 +2301,6 @@
           renderMessage(systemMessage, "system");
           return;
         }
-        // 检查是否是 "kick xxx" 消息
-        if (message.includes("：kick ")) {
-          const content = message.split("：kick ")[1]; // 提取 "：kick " 后的内容
-          const parts = content.split(" ");
-          const kickedUser = parts[0]?.trim(); // 提取被踢用户
-          const cause = parts[1]?.trim(); // 提取原因（固定的第三个段）
-          if (cause === "name" && kickedUser === username) {
-            alert(`请重新输入昵称！`);
-            deleteCookie("username"); // 清空 cookie
-            location.reload(); // 刷新页面重新输入昵称
-            return;
-          }
-          if (kickedUser === username && kickedUser === username) {
-            alert(`你已被踢出！\n原因：${cause || "无"}`);
-            //deleteCookie("username"); // 清空 cookie
-            location.reload(); // 刷新页面重新输入昵称
-          }
-          return;
-        }
-
         // // 检查是否是 "ban xxx" 消息
         // if (message.includes("：ban ")) {
         //     const content = message.split("：ban ")[1]; // 提取 "：ban " 后的内容
@@ -2327,8 +2329,15 @@
         scheduleSyncMessageBottomSpacing();
       });
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
+        if (event && event.code === 4001) {
+          handleForcedDisconnect(event.reason);
+          return;
+        }
         //alert("你已断开连接！正在尝试重新连接...");
+        if (!shouldReconnect) {
+          return;
+        }
         reconnectWebSocket();
       };
 
@@ -2336,6 +2345,9 @@
         const reconnectInterval = 3000; // 每 3 秒尝试重连一次
 
         const tryReconnect = () => {
+          if (!shouldReconnect) {
+            return;
+          }
           ws = new WebSocket("ws://im.kndxhz.cn:8765");
           historyReplayDone = false;
 
@@ -2347,7 +2359,14 @@
             }
           };
 
-          ws.onclose = () => {
+          ws.onclose = (event) => {
+            if (event && event.code === 4001) {
+              handleForcedDisconnect(event.reason);
+              return;
+            }
+            if (!shouldReconnect) {
+              return;
+            }
             console.log("重连失败，继续尝试...");
             setTimeout(tryReconnect, reconnectInterval);
           };
@@ -2358,9 +2377,7 @@
               typeof message === "string" &&
               message.startsWith(SYSTEM_ALERT_PREFIX)
             ) {
-              alert(message.slice(SYSTEM_ALERT_PREFIX.length));
-              deleteCookie("username");
-              location.reload();
+              handleSystemAlert(message);
               return;
             }
             if (

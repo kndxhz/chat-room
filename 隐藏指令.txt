@@ -1,11 +1,17 @@
-﻿kick 昵称 原因 秘钥
+/kick 昵称 原因 秘钥
 踢出某人（可重连） 当原因=name的时候就是“请重新设定昵称”
 
-ban ip 秘钥
-封禁某人（不可重连）
+/ban ip 秘钥
+按 IP 封禁某人（不可重连）
 
-change-key
+/unban ip 秘钥
+解除封禁
+
+/change-key
 更新秘钥
+
+命令支持带 / 或不带 /
+kick 按昵称生效，ban/unban 按 IP 生效
 
 双击左Alt
 复制秘钥到剪贴板

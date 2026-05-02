@@ -94,6 +94,7 @@ LOG_FIELD_WHITELIST = {
     "下载文件": ["user", "file"],
     "昵称格式不合法": ["name"],
     "昵称重复": ["name"],
+    "踢出用户": ["user"],
     "封禁IP": ["ip"],
     "解除封禁": ["ip"],
     "删除文件": ["file"],
@@ -138,6 +139,23 @@ def parse_reply_meta(content):
         "target_msgid": target_msgid,
         "body": body,
     }
+
+
+def parse_hidden_command(message):
+    normalized = (message or "").strip()
+    if normalized.startswith("/"):
+        normalized = normalized[1:].strip()
+    if not normalized:
+        return None, []
+    parts = normalized.split()
+    return parts[0].lower(), parts[1:]
+
+
+def write_new_key():
+    new_key = str(random.randint(10000, 99999))
+    with open(KEY_FILE, "w", encoding="utf-8") as f:
+        f.write(new_key)
+    return new_key
 
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -454,14 +472,15 @@ def get_online_user():
 def on_alt_press(event):
     global LAST_ALT_PRESS_TIME
 
-    if event.name == "alt" and event.event_type == "down":
+    event_name = str(getattr(event, "name", "") or "").lower()
+    if event_name in {"alt", "left alt", "alt left"} and event.event_type == "down":
         current_time = time.time()
         time_since_last_alt = current_time - LAST_ALT_PRESS_TIME
 
         # 如果两次Alt按下时间间隔小于阈值，则认为是双击
         if time_since_last_alt < DOUBLE_CLICK_THRESHOLD:
             with open(KEY_FILE, "r", encoding="utf-8") as f:
-                pyperclip.copy(f.read())
+                pyperclip.copy(f.read().strip())
 
         LAST_ALT_PRESS_TIME = current_time
 
@@ -496,6 +515,16 @@ async def close_websocket_by_ip(ip):
             await websocket.close()
 
 
+async def close_websocket_by_name(name, notice=None):
+    closed = False
+    for websocket in connected_clients.copy():
+        if getattr(websocket, "name", websocket.remote_address[0]) == name:
+            close_reason = notice or "你已被踢出"
+            await websocket.close(code=4001, reason=close_reason)
+            closed = True
+    return closed
+
+
 async def handler(websocket):
     global key
     # 注册新客户端
@@ -514,6 +543,8 @@ async def handler(websocket):
         await broadcast_connection_list(websocket)  # 广播连接消息
 
         async for message in websocket:
+            hidden_command, hidden_args = parse_hidden_command(message)
+
             if message.startswith("/set-name"):
                 # 获取当前时间
                 current_time = datetime.datetime.now()
@@ -575,26 +606,59 @@ async def handler(websocket):
                     await send_system_message(websocket, f"你已成功改名为 {new_name}")
 
                 update_connect_file()
-            elif message.startswith("change-key"):
-                key = str(random.randint(10000, 99999))
-                with open(KEY_FILE, "w", encoding="utf-8") as f:
-                    f.write("")
-                    f.write(key)
+            elif hidden_command == "change-key":
+                key = write_new_key()
                 log_event(logging.INFO, "更新秘钥")
                 await send_system_message(websocket, "已更新秘钥")
-
-            elif "kick" in message and key not in message:
-                pass
-            elif message.startswith("ban") and key in message:
+            elif hidden_command == "kick":
                 try:
-                    ip = message.split(" ")[1]
+                    if len(hidden_args) < 3:
+                        await send_system_message(
+                            websocket, "用法: /kick 昵称 原因 秘钥"
+                        )
+                        continue
+                    name = hidden_args[0]
+                    command_key = hidden_args[-1]
+                    reason = " ".join(hidden_args[1:-1]).strip()
+                    if command_key != key:
+                        await send_system_message(websocket, "秘钥错误")
+                        continue
+                    if not reason:
+                        await send_system_message(
+                            websocket, "用法: /kick 昵称 原因 秘钥"
+                        )
+                        continue
+                    notice = (
+                        "请重新设定昵称"
+                        if reason == "name"
+                        else f"你已被踢出！\n原因：{reason}"
+                    )
+                    closed = await close_websocket_by_name(name, notice=notice)
+                    if not closed:
+                        await send_system_message(websocket, f"用户不存在: {name}")
+                        continue
+                    log_event(logging.WARNING, "踢出用户", user=name)
+                    await send_system_message(websocket, f"{name} 被踢出")
+                except Exception as e:
+                    log_event(logging.ERROR, "踢出失败", error=e)
+                    await send_system_message(websocket, f"踢出失败: {e}")
+            elif hidden_command == "ban":
+                try:
+                    if len(hidden_args) != 2:
+                        await send_system_message(websocket, "用法: /ban ip 秘钥")
+                        continue
+                    ip = hidden_args[0]
+                    command_key = hidden_args[1]
+                    if command_key != key:
+                        await send_system_message(websocket, "秘钥错误")
+                        continue
                     if ip.count(".") != 3:
                         await send_system_message(websocket, "ip格式错误")
-                        return
+                        continue
                     log_event(logging.WARNING, "封禁IP", ip=ip)
                     with open(BAN_FILE, "a", encoding="utf-8") as f:
                         f.write(ip + "\n")
-                    await send_system_message(websocket, f"{ip} 被 ban")
+                    await send_system_message(websocket, f"{ip} 被封禁")
                     await close_websocket_by_ip(ip)
                     await asyncio.gather(
                         *[
@@ -605,10 +669,17 @@ async def handler(websocket):
                     )
                 except Exception as e:
                     log_event(logging.ERROR, "封禁失败", error=e)
-                    await send_system_message(websocket, f"ban 失败: {e}")
-            elif message.startswith("unban") and key in message:
+                    await send_system_message(websocket, f"封禁失败: {e}")
+            elif hidden_command == "unban":
                 try:
-                    ip = message.split(" ")[1]
+                    if len(hidden_args) != 2:
+                        await send_system_message(websocket, "用法: /unban ip 秘钥")
+                        continue
+                    ip = hidden_args[0]
+                    command_key = hidden_args[1]
+                    if command_key != key:
+                        await send_system_message(websocket, "秘钥错误")
+                        continue
                     log_event(logging.INFO, "解除封禁", ip=ip)
                     with open(BAN_FILE, "r", encoding="utf-8") as f:
                         lines = f.readlines()
@@ -618,7 +689,7 @@ async def handler(websocket):
 
                 except Exception as e:
                     log_event(logging.ERROR, "解除封禁失败", error=e)
-                    await send_system_message(websocket, f"unban 失败: {e}")
+                    await send_system_message(websocket, f"解除封禁失败: {e}")
 
             elif message == "/del-all-files":
                 try:
@@ -757,10 +828,9 @@ if __name__ == "__main__":
     for folder in create_folders:
         os.makedirs(folder, exist_ok=True)
 
-    key = str(random.randint(10000, 99999))
-    with open(KEY_FILE, "w", encoding="utf-8") as f:
-        f.write(key)
-    log_event(logging.INFO, "生成秘钥", key=key)
+    key = write_new_key()
+    log_event(logging.INFO, "生成秘钥")
+    print(f"当前秘钥: {key}")
     update_cloudflare_dns(get_host_ip())
     download_bing_pic()
     log_event(logging.INFO, "必应图片信息", title=BING_INFO.replace("\n", "|"))

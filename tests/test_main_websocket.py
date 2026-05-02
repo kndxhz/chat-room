@@ -59,12 +59,12 @@ def test_handler_command_branches(main_env, monkeypatch):
             "10.0.0.5",
             2005,
             [
-                "change-key",
+                "/change-key",
                 "/list",
                 "/del missing.txt",
                 "/del-all-files",
-                "ban 1.2.3.4 12345",
-                "unban 1.2.3.4 12345",
+                "/ban 1.2.3.4 12345",
+                "/unban 1.2.3.4 12345",
                 "/clear",
             ],
         )
@@ -89,6 +89,34 @@ def test_handler_command_branches(main_env, monkeypatch):
         )
         assert main_env.ban_file.read_text(encoding="utf-8").strip() == ""
         assert "dns:9.9.9.9" not in close_calls
+
+    asyncio.run(scenario())
+
+
+def test_handler_kick_command_uses_name_and_key(main_env):
+    async def scenario():
+        chat_main.connected_clients.clear()
+
+        target = FakeWebSocket("10.0.0.9", 2009)
+        target.name = "Alice"
+        chat_main.connected_clients.add(target)
+
+        admin = FakeWebSocket(
+            "10.0.0.5",
+            2005,
+            ["/kick Alice name 12345"],
+        )
+        await chat_main.handler(admin)
+
+        assert target.closed is True
+        assert any(
+            message == f"{chat_main.SYSTEM_ALERT_PREFIX}请重新设定昵称"
+            for message in target.sent
+        )
+        assert any(
+            message == f"{chat_main.SYSTEM_PREFIX}Alice 被 kick"
+            for message in admin.sent
+        )
 
     asyncio.run(scenario())
 
