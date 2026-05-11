@@ -36,7 +36,9 @@
 
     .message-content img {
       display: block;
-      max-width: 100%;
+      max-width: min(100%, 480px);
+      max-height: 320px;
+      width: auto;
       height: auto;
       object-fit: contain;
       cursor: zoom-in;
@@ -871,6 +873,15 @@
       right: 24px;
     }
 
+    .file-list a {
+      display: block;
+      margin-bottom: 6px;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-all;
+      line-height: 1.4;
+    }
+
     .instructions {
       right: 72px;
       left: auto;
@@ -909,9 +920,10 @@
     }
 
     .message-content.sent {
-      background: rgba(0, 123, 255, 0.1);
+      background: rgba(255, 255, 255, 0.5);
       border-left: 3px solid #007bff;
       border-radius: 0 10px 10px 10px;
+      color: #1f2937;
     }
 
     .message-content.received {
@@ -2661,7 +2673,7 @@
       messageElement.classList.add(type);
       messageElement.style.background =
         type === "sent"
-          ? "rgba(0, 123, 255, 0.1)"
+          ? "rgba(255, 255, 255, 0.5)"
           : type === "system"
             ? "rgba(255, 193, 7, 0.14)"
             : "rgba(255, 255, 255, 0.5)";
