@@ -16,3 +16,4 @@ chat-room.log
 sandbox_tmp/
 sandbox_tmp_runtime/
 tests/.tmp/
+chat.db-journal

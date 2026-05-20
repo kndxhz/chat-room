@@ -30,6 +30,7 @@
       padding: 10px;
       background: rgba(255, 255, 255, 0.5);
       border-radius: 10px;
+      backdrop-filter: blur(6px);
       word-wrap: break-word;
       word-break: break-word;
     }
@@ -1935,32 +1936,62 @@
       });
     }
 
-    // 设置 cookie
+    // 设置 cookie（统一 SameSite，并根据当前协议选择 Secure）
     function setCookie(name, value, days) {
       const date = new Date();
       date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
-      const cookieString = `${name}=${encodeURIComponent(value)};expires=${date.toUTCString()};path=/`;
-      console.log("设置cookie:", cookieString); // 调试日志
+      const expires = `expires=${date.toUTCString()}`;
+      const sameSite = `SameSite=Lax`;
+      const secure = location.protocol === "https:" ? ";Secure" : "";
+      const cookieString = `${name}=${encodeURIComponent(value)};${expires};path=/;${sameSite}${secure}`;
+      console.log("设置cookie:", cookieString);
       document.cookie = cookieString;
-
     }
 
-    // 获取 cookie
+    // 获取 cookie（更稳健的解析）
     function getCookie(name) {
-      const cookies = document.cookie.split("; ");
-      for (let cookie of cookies) {
-        const [key, value] = cookie.split("=");
-        if (key === name) {
-          return decodeURIComponent(value || "");
-        }
-      }
-      return null;
+      const match = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + '=([^;]*)'));
+      return match ? decodeURIComponent(match[1]) : null;
     }
 
-    // 删除 cookie
+    // 删除 cookie（尝试不同 path/domain/max-age 组合以提高删除成功率）
     function deleteCookie(name) {
-      document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/`;
+      const expires = 'expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      const maxAge = 'max-age=0';
+      const paths = ['/', location.pathname || '/'];
+      const host = location.hostname;
+      const domains = host ? [host] : [];
+      // include leading-dot domain to cover subdomains if hostname not localhost
+      if (host && host.indexOf('.') > -1) {
+        domains.push('.' + host);
+      }
 
+      // try without domain first
+      paths.forEach((p) => {
+        try {
+          document.cookie = `${name}=;${expires};${maxAge};path=${p}`;
+        } catch (e) {
+          // ignore
+        }
+      });
+
+      // try with domains
+      domains.forEach((d) => {
+        paths.forEach((p) => {
+          try {
+            document.cookie = `${name}=;${expires};${maxAge};path=${p};domain=${d}`;
+          } catch (e) {
+            // ignore
+          }
+        });
+      });
+      try {
+        if (window.localStorage && typeof window.localStorage.removeItem === 'function') {
+          window.localStorage.removeItem(name);
+        }
+      } catch (e) {
+        // ignore
+      }
     }
     function setBackgroundImage() {
       const fallbackImageUrl = "./img/nahida.jpg";
@@ -2078,49 +2109,27 @@
       });
     }
 
-    // 显示系统消息模态遮罩
+    // 系统通知处理：仅昵称相关告警使用 alert，其余不弹窗
     function showSystemModal(text, onClose) {
-      if (document.getElementById("systemModalBackdrop")) {
-        // 已存在，更新文本
-        const body = document.querySelector("#systemModalBackdrop .system-modal-body");
-        if (body) body.textContent = text || "";
+      const t = (text || "").toString();
+      const critical = /昵称重复|请重新设定昵称|请重新输入/.test(t);
+      if (!critical) {
         return;
       }
-      const backdrop = document.createElement("div");
-      backdrop.id = "systemModalBackdrop";
-      backdrop.className = "system-modal-backdrop";
-
-      const dialog = document.createElement("div");
-      dialog.className = "system-modal";
-
-      const body = document.createElement("div");
-      body.className = "system-modal-body";
-      body.textContent = text || "";
-
-      const actions = document.createElement("div");
-      actions.className = "system-modal-actions";
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.textContent = "确定";
-      btn.onclick = () => {
-        hideSystemModal();
-        try {
-          if (typeof onClose === "function") onClose();
-        } catch (e) {
-          console.error(e);
-        }
-      };
-      actions.appendChild(btn);
-
-      dialog.appendChild(body);
-      dialog.appendChild(actions);
-      backdrop.appendChild(dialog);
-      document.body.appendChild(backdrop);
+      try {
+        alert(t);
+      } catch (e) {
+        console.error("alert failed", e);
+      }
+      try {
+        if (typeof onClose === "function") onClose();
+      } catch (e) {
+        console.error(e);
+      }
     }
 
     function hideSystemModal() {
-      const el = document.getElementById("systemModalBackdrop");
-      if (el) el.remove();
+      // no-op
     }
 
     function closeMentionAlertByKeyboard() {
@@ -2159,7 +2168,7 @@
     );
 
     // 页面加载时要求用户输入名称
-    window.onload = () => {
+    window.onload = async () => {
       console.log(
         "%c    __             __     __                           \n   / /______  ____/ /  __/ /_  ____                    \n  / //_/ __ \\/ __  / |/_/ __ \\/_  /                    \n / ,< / / / / /_/ />  </ / / / / /_                    \n/_/|_/_/_/_/\\__,_/_/|_/_/ /_/ /___/                    \n  _____/ /_  ____ _/ /_      _________  ____  ____ ___ \n / ___/ __ \\/ __ `/ __/_____/ ___/ __ \\/ __ \\/ __ `__ \\\n/ /__/ / / / /_/ / /_/_____/ /  / /_/ / /_/ / / / / / /\n\\___/_/ /_/\\__,_/\\__/     /_/   \\____/\\____/_/ /_/ /_/ \n                                                       \n%cgithub.com/kndxhz/chat-room\n切勿直接扒源码!前端只是个静态页面!",
         "color: green",
@@ -2170,21 +2179,31 @@
       if (!username) {
         username = prompt("请输入你的昵称：");
         if (!username || username.trim() === "") {
-          alert("请输入昵称！");
-          location.reload(); // 刷新页面
+          showSystemModal("请输入昵称！", () => { location.reload(); });
           return;
         }
         if (!isValidUsername(username)) {
-          alert("昵称只能包含英文、中文、数字和下划线！");
-          deleteCookie("username");
-          location.reload();
+          showSystemModal("昵称只能包含英文、中文、数字和下划线！", () => {
+            deleteCookie("username");
+            location.reload();
+          });
+          return;
+        }
+        // 先用前端 API 检查是否重复
+        await fetchOnlineUsers();
+        if (onlineUsers && onlineUsers.includes(username)) {
+          showSystemModal("昵称重复，请重新输入！", () => {
+            deleteCookie("username");
+            location.reload();
+          });
           return;
         }
         setCookie("username", username, 1); // 设置 cookie，时长为 1 天
       } else if (!isValidUsername(username)) {
-        alert("昵称格式不合法，请重新设置！");
-        deleteCookie("username");
-        location.reload();
+        showSystemModal("昵称格式不合法，请重新设置！", () => {
+          deleteCookie("username");
+          location.reload();
+        });
         return;
       }
       connectWebSocket();
@@ -2345,26 +2364,38 @@
       let shouldReconnect = true;
 
       function handleSystemAlert(message) {
-        const alertText = message.slice(SYSTEM_ALERT_PREFIX.length);
+        const alertText = message.slice(SYSTEM_ALERT_PREFIX.length).trim();
         shouldReconnect = false;
         if (ws) {
           ws.onclose = null;
         }
-        alert(alertText);
-        if (alertText === "请重新设定昵称") {
-          deleteCookie("username");
+        // 如果是昵称相关的强制重设，优先删除 cookie 并提示用户
+        if (alertText.includes("昵称重复") || alertText.includes("请重新设定昵称") || alertText.includes("请重新输入")) {
+          try {
+            deleteCookie("username");
+          } catch (e) {
+            console.error(e);
+          }
+          showSystemModal(alertText, () => {
+            location.reload();
+          });
+          return;
         }
-        location.reload();
+        // 其他系统告警统一使用模态显示
+        showSystemModal(alertText, () => {
+          location.reload();
+        });
       }
 
       function handleForcedDisconnect(reasonText) {
         const text = (reasonText || "").trim() || "你已被踢出";
         shouldReconnect = false;
-        if (text === "请重新设定昵称") {
-          deleteCookie("username");
+        if (text.includes("请重新设定昵称") || text.includes("昵称重复") || text.includes("请重新输入")) {
+          try { deleteCookie("username"); } catch (e) { console.error(e); }
+          showSystemModal(text, () => { location.reload(); });
+          return;
         }
-        alert(text);
-        location.reload();
+        showSystemModal(text, () => { location.reload(); });
       }
 
       ws.onopen = () => {
@@ -2502,7 +2533,7 @@
       }
     }
 
-    function sendMessage() {
+    async function sendMessage() {
       const messageInput = document.getElementById("messageInput");
       const message = messageInput.value.trim();
 
@@ -2543,7 +2574,15 @@
           const newUsername = message.substring(10);
           if (newUsername) {
             if (!isValidUsername(newUsername)) {
-              alert("昵称只能包含英文、中文、数字和下划线！");
+              showSystemModal("昵称只能包含英文、中文、数字和下划线！");
+              return;
+            }
+            // 前端先校验是否被占用
+            await fetchOnlineUsers();
+            if (onlineUsers && onlineUsers.includes(newUsername)) {
+              showSystemModal("昵称重复，请重新输入！", () => {
+                deleteCookie("username");
+              });
               return;
             }
             username = newUsername; // 更新本地变量
@@ -2770,20 +2809,6 @@
       }
       container.appendChild(messageElement);
       messagesDiv.appendChild(container);
-
-      if (type === "system") {
-        const needReset = (message || "").toString().trim() === "请重新设定昵称";
-        try {
-          showSystemModal(message, () => {
-            if (needReset) {
-              deleteCookie("username");
-              location.reload();
-            }
-          });
-        } catch (e) {
-          console.error("显示系统模态失败：", e);
-        }
-      }
 
       initLightbox();
 
