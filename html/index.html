@@ -36,7 +36,9 @@
 
     .message-content img {
       display: block;
-      max-width: 100%;
+      max-width: min(100%, 480px);
+      max-height: 320px;
+      width: auto;
       height: auto;
       object-fit: contain;
       cursor: zoom-in;
@@ -409,6 +411,52 @@
 
     .floating-panel.open {
       display: block;
+    }
+
+    /* 系统消息模态遮罩 */
+    .system-modal-backdrop {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(6px);
+      z-index: 10010;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .system-modal {
+      max-width: 90vw;
+      width: 520px;
+      background: rgba(255, 255, 255, 0.96);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
+      color: #111;
+      z-index: 10011;
+      font-size: 14px;
+    }
+
+    .system-modal .system-modal-body {
+      margin-bottom: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .system-modal .system-modal-actions {
+      text-align: right;
+    }
+
+    .system-modal .system-modal-actions button {
+      background: #007bff;
+      color: #fff;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
     }
 
     .instructions,
@@ -871,6 +919,15 @@
       right: 24px;
     }
 
+    .file-list a {
+      display: block;
+      margin-bottom: 6px;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-all;
+      line-height: 1.4;
+    }
+
     .instructions {
       right: 72px;
       left: auto;
@@ -909,9 +966,10 @@
     }
 
     .message-content.sent {
-      background: rgba(0, 123, 255, 0.1);
+      background: rgba(255, 255, 255, 0.5);
       border-left: 3px solid #007bff;
       border-radius: 0 10px 10px 10px;
+      color: #1f2937;
     }
 
     .message-content.received {
@@ -1884,9 +1942,7 @@
       const cookieString = `${name}=${encodeURIComponent(value)};expires=${date.toUTCString()};path=/`;
       console.log("设置cookie:", cookieString); // 调试日志
       document.cookie = cookieString;
-      if (name === "username") {
-        localStorage.setItem("username", value);
-      }
+
     }
 
     // 获取 cookie
@@ -1898,21 +1954,13 @@
           return decodeURIComponent(value || "");
         }
       }
-      if (name === "username") {
-        const storedUsername = localStorage.getItem("username");
-        if (storedUsername) {
-          return storedUsername;
-        }
-      }
       return null;
     }
 
     // 删除 cookie
     function deleteCookie(name) {
       document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/`;
-      if (name === "username") {
-        localStorage.removeItem("username");
-      }
+
     }
     function setBackgroundImage() {
       const fallbackImageUrl = "./img/nahida.jpg";
@@ -2028,6 +2076,51 @@
           panel.classList.remove("open");
         }
       });
+    }
+
+    // 显示系统消息模态遮罩
+    function showSystemModal(text, onClose) {
+      if (document.getElementById("systemModalBackdrop")) {
+        // 已存在，更新文本
+        const body = document.querySelector("#systemModalBackdrop .system-modal-body");
+        if (body) body.textContent = text || "";
+        return;
+      }
+      const backdrop = document.createElement("div");
+      backdrop.id = "systemModalBackdrop";
+      backdrop.className = "system-modal-backdrop";
+
+      const dialog = document.createElement("div");
+      dialog.className = "system-modal";
+
+      const body = document.createElement("div");
+      body.className = "system-modal-body";
+      body.textContent = text || "";
+
+      const actions = document.createElement("div");
+      actions.className = "system-modal-actions";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = "确定";
+      btn.onclick = () => {
+        hideSystemModal();
+        try {
+          if (typeof onClose === "function") onClose();
+        } catch (e) {
+          console.error(e);
+        }
+      };
+      actions.appendChild(btn);
+
+      dialog.appendChild(body);
+      dialog.appendChild(actions);
+      backdrop.appendChild(dialog);
+      document.body.appendChild(backdrop);
+    }
+
+    function hideSystemModal() {
+      const el = document.getElementById("systemModalBackdrop");
+      if (el) el.remove();
     }
 
     function closeMentionAlertByKeyboard() {
@@ -2661,7 +2754,7 @@
       messageElement.classList.add(type);
       messageElement.style.background =
         type === "sent"
-          ? "rgba(0, 123, 255, 0.1)"
+          ? "rgba(255, 255, 255, 0.5)"
           : type === "system"
             ? "rgba(255, 193, 7, 0.14)"
             : "rgba(255, 255, 255, 0.5)";
@@ -2677,6 +2770,20 @@
       }
       container.appendChild(messageElement);
       messagesDiv.appendChild(container);
+
+      if (type === "system") {
+        const needReset = (message || "").toString().trim() === "请重新设定昵称";
+        try {
+          showSystemModal(message, () => {
+            if (needReset) {
+              deleteCookie("username");
+              location.reload();
+            }
+          });
+        } catch (e) {
+          console.error("显示系统模态失败：", e);
+        }
+      }
 
       initLightbox();
 
