@@ -20,6 +20,6 @@ pytest==9.0.3
 python-dotenv==1.2.2
 requests==2.33.0
 setuptools==83.0.0
-urllib3==2.7.0
+urllib3==2.8.0
 websockets==15.0.1
 Werkzeug==3.1.6
