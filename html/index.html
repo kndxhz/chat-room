@@ -1105,6 +1105,8 @@
     let pendingSentMessages = [];
     let glightboxInstance = null;
     let lightboxInfoEl = null;
+    let lightboxVisible = false;
+    let lightboxNeedsUpdate = false;
     const SYSTEM_PREFIX = "[SYSTEM]";
     const SYSTEM_ALERT_PREFIX = "[SYSTEM:ALERT]";
 
@@ -1898,13 +1900,21 @@
         return;
       }
 
-      if (glightboxInstance && typeof glightboxInstance.update === "function") {
-        glightboxInstance.update();
+      if (glightboxInstance) {
+        // 预览打开时更新图片列表会重新加载当前图片，导致缩放/位置重置。
+        // 这里先记录待更新，等预览关闭后再同步新增图片。
+        if (
+          lightboxVisible ||
+          glightboxInstance.isShown ||
+          glightboxInstance.showing
+        ) {
+          lightboxNeedsUpdate = true;
+          return;
+        }
+        if (typeof glightboxInstance.update === "function") {
+          glightboxInstance.update();
+        }
         return;
-      }
-
-      if (glightboxInstance && typeof glightboxInstance.destroy === "function") {
-        glightboxInstance.destroy();
       }
 
       glightboxInstance = new Viewer(messagesDiv, {
@@ -1924,8 +1934,20 @@
         zoomOnWheel: true,
         toggleOnDblclick: true,
         tooltip: false,
+        shown() {
+          lightboxVisible = true;
+        },
         hidden() {
+          lightboxVisible = false;
           clearLightboxInfo();
+          if (
+            lightboxNeedsUpdate &&
+            glightboxInstance &&
+            typeof glightboxInstance.update === "function"
+          ) {
+            lightboxNeedsUpdate = false;
+            glightboxInstance.update();
+          }
         },
         viewed() {
           updateLightboxInfo(formatViewerRatio(), true);
