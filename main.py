@@ -855,19 +855,19 @@ def run_flask_app():
 
 
 if __name__ == "__main__":
-    try:
-        os.remove(DB_FILE)
-    except FileNotFoundError:
-        log_event(logging.INFO, "数据库文件不存在，无需删除")
+    # try:
+        # os.remove(DB_FILE)
+    # except FileNotFoundError:
+        # log_event(logging.INFO, "数据库文件不存在，无需删除")
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
     app.logger.setLevel(logging.WARNING)
     init_db()
 
-    create_files = (CONNECT_FILE, HISTORY_FILE, KEY_FILE, BAN_FILE)
-    for file in create_files:
-        if not os.path.exists(file):
-            with open(file, "w", encoding="utf-8") as f:
-                pass
+    # create_files = (CONNECT_FILE, HISTORY_FILE, KEY_FILE, BAN_FILE)
+    # for file in create_files:
+    #     if not os.path.exists(file):
+    #         with open(file, "w", encoding="utf-8") as f:
+    #             pass
     create_folders = (UPLOAD_FOLDER, IMAGE_FOLDER)
     for folder in create_folders:
         os.makedirs(folder, exist_ok=True)
